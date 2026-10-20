@@ -9,6 +9,7 @@ import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/sonar/sonar.dart';
 import 'package:hiddify/sonar/sonar_key.dart';
 import 'package:hiddify/sonar/sonar_sphere.dart';
+import 'package:hiddify/sonar/sonar_updater.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -63,6 +64,9 @@ class SonarIntro extends HookConsumerWidget {
                 constraints: const BoxConstraints(maxWidth: 440),
                 child: Column(
                   children: [
+                    // Обновление проверяется и здесь: старая сборка обновится до первого «Начать»
+                    const SonarUpdateBanner(),
+                    const SizedBox(height: 12),
                     SonarSphere(
                       state: busy
                           ? SphereState.connecting
