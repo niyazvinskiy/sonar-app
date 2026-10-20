@@ -133,9 +133,9 @@ jobs:
           Invoke-WebRequest $url -OutFile "$env:RUNNER_TEMP\innosetup.exe"
           $dir = "C:\Program Files (x86)\Inno Setup 6"
           Start-Process "$env:RUNNER_TEMP\innosetup.exe" -Wait -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/ALLUSERS', "/DIR=`"$dir`""
-          $v = (Get-Item "$dir\ISCC.exe").VersionInfo.ProductVersion
-          "Inno Setup $v"
-          if (-not $v.StartsWith('6.7')) { throw "нужен Inno Setup 6.7, стоит $v" }
+          # у ISCC.exe пустой ProductVersion: версию берём из реестра и FileVersion, только для журнала
+          $reg = Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1' -ErrorAction SilentlyContinue
+          "Inno Setup: реестр $($reg.DisplayVersion), ISCC $((Get-Item "$dir\ISCC.exe").VersionInfo.FileVersion)"
           "INNO_SETUP_PATH=$dir" >> $env:GITHUB_ENV
 
       # Один и тот же ключ подписи из секретов: иначе Android не поставит обновление поверх
