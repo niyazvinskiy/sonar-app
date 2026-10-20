@@ -1,0 +1,80 @@
+# Проверка автообновления на Android в эмуляторе: сборка с номером старее
+# последнего выпуска должна сама обновиться до него при погашенном экране и
+# включить VPN обратно. Запуск вручную: gh workflow run android-update-test.yml
+name: Android update test
+
+on:
+  workflow_dispatch:
+    inputs:
+      from-version:
+        description: "Версия тестовой сборки, старее последнего выпуска"
+        default: "1.2.1"
+      from-build:
+        description: "Номер сборки"
+        default: "12001"
+
+env:
+  FLUTTER_VERSION: '3.38.5'
+  CHANNEL: prod
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Clean up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: subosito/flutter-action@v2.21.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      # Тот же ключ, что у выпусков: иначе Android не поставит обновление поверх
+      - name: Signing
+        run: |
+          echo "${{ secrets.ANDROID_SIGNING_KEY }}" | base64 --decode > android/key.jks
+          echo "storeFile=$(pwd)/android/key.jks" > android/key.properties
+          echo "storePassword=${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}" >> android/key.properties
+          echo "keyPassword=${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}" >> android/key.properties
+
+      - name: Prepare
+        run: make android-apk-prepare
+
+      - name: Build old version
+        run: |
+          flutter build apk --release --target lib/main_prod.dart --target-platform android-x64 \
+            --build-name ${{ inputs.from-version }} --build-number ${{ inputs.from-build }} \
+            --dart-define SONAR_API=${{ secrets.SONAR_API }}
+          ls -la build/app/outputs/flutter-apk/
+
+      - name: Update test in emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash .github/scripts/android-update-test.sh "$(ls build/app/outputs/flutter-apk/*.apk | grep -m1 -E 'x86_64|app-release')"
