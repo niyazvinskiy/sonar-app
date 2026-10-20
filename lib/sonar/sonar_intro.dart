@@ -6,8 +6,10 @@ import 'package:hiddify/core/model/region.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/sonar/sonar.dart';
+import 'package:hiddify/sonar/sonar_aurora.dart';
 import 'package:hiddify/sonar/sonar_key.dart';
 import 'package:hiddify/sonar/sonar_sphere.dart';
+import 'package:hiddify/sonar/sonar_style.dart';
 import 'package:hiddify/sonar/sonar_updater.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -44,16 +46,14 @@ class SonarIntro extends HookConsumerWidget {
 
     const paper = Color(Sonar.paper);
     const feather = Color(Sonar.feather);
+    final sphere = busy
+        ? SphereState.connecting
+        : keyStatus is SonarKeyFailed
+        ? SphereState.failed
+        : SphereState.idle;
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0, -.5),
-            radius: 1.3,
-            colors: [Color(Sonar.night2), Color(Sonar.night1), Color(Sonar.night0)],
-            stops: [0, .45, 1],
-          ),
-        ),
+      body: SonarAurora(
+        mood: SonarMood.of(sphere),
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -65,28 +65,26 @@ class SonarIntro extends HookConsumerWidget {
                     // Обновление проверяется и здесь: старая сборка обновится до первого «Начать»
                     const SonarUpdateBanner(),
                     const SizedBox(height: 12),
-                    SonarSphere(
-                      state: busy
-                          ? SphereState.connecting
-                          : keyStatus is SonarKeyFailed
-                          ? SphereState.failed
-                          : SphereState.idle,
-                      size: 240,
-                      onTap: busy ? null : start,
-                      semanticLabel: 'Начать',
-                    ),
+                    SonarSphere(state: sphere, size: 280, onTap: busy ? null : start, semanticLabel: 'Начать'),
                     const SizedBox(height: 12),
                     const Text(
                       'Всё открыто.\nПинг на месте.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 34, height: 1.12, fontWeight: FontWeight.w300, color: paper),
+                      style: TextStyle(
+                        fontFamily: 'Jost',
+                        fontSize: 36,
+                        height: 1.1,
+                        fontWeight: FontWeight.w300,
+                        letterSpacing: -.4,
+                        color: paper,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     const Text(
                       'YouTube, Discord, Instagram и нейросети открываются, а игры и российские сайты идут напрямую. '
                       'Личный ключ создастся сам: без регистрации и настроек.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16, height: 1.5, color: feather),
+                      style: TextStyle(fontFamily: 'Jost', fontSize: 16, height: 1.5, color: feather),
                     ),
                     const SizedBox(height: 28),
                     SizedBox(
@@ -97,7 +95,9 @@ class SonarIntro extends HookConsumerWidget {
                           backgroundColor: paper,
                           foregroundColor: const Color(Sonar.night0),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                          textStyle: const TextStyle(fontFamily: 'Jost', fontSize: 17, fontWeight: FontWeight.w600),
+                          elevation: 0,
+                          shadowColor: Colors.transparent,
                         ),
                         onPressed: busy ? null : start,
                         child: busy
@@ -116,7 +116,7 @@ class SonarIntro extends HookConsumerWidget {
                     const SizedBox(height: 28),
                     Text.rich(
                       TextSpan(
-                        style: const TextStyle(fontSize: 12, color: feather, height: 1.5),
+                        style: const TextStyle(fontFamily: 'Jost', fontSize: 12, color: feather, height: 1.5),
                         children: [
                           const TextSpan(text: 'Sonar основан на открытом приложении '),
                           TextSpan(

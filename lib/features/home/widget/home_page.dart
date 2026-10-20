@@ -1,12 +1,14 @@
 import 'package:dartx/dartx.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/gen/assets.gen.dart';
 import 'package:hiddify/sonar/sonar.dart';
 import 'package:hiddify/sonar/sonar_home.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+
 class HomePage extends HookConsumerWidget {
   const HomePage({super.key});
 
@@ -20,15 +22,27 @@ class HomePage extends HookConsumerWidget {
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         foregroundColor: const Color(Sonar.paper),
+        titleSpacing: 20,
         title: Row(
           children: [
-            Assets.images.logo.svg(height: 24),
+            Assets.images.logo.svg(height: 26),
             const Gap(10),
-            const Text('Sonar', style: TextStyle(fontWeight: FontWeight.w400, letterSpacing: .5)),
-            const Gap(8),
+            const Text(
+              'SONAR',
+              style: TextStyle(fontFamily: 'Jost', fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 3.2),
+            ),
+            const Gap(10),
             const AppVersionLabel(),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Настройки',
+            icon: const Icon(Icons.tune_rounded),
+            onPressed: () => context.go('/settings'),
+          ),
+          const Gap(8),
+        ],
       ),
       body: const SonarHome(),
     );
@@ -49,14 +63,10 @@ class AppVersionLabel extends HookConsumerWidget {
     return Semantics(
       label: t.common.version,
       button: false,
-      child: Container(
-        decoration: BoxDecoration(color: theme.colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(4)),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-        child: Text(
-          version,
-          textDirection: TextDirection.ltr,
-          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSecondaryContainer),
-        ),
+      child: Text(
+        version,
+        textDirection: TextDirection.ltr,
+        style: theme.textTheme.bodySmall?.copyWith(color: const Color(Sonar.feather).withValues(alpha: .7)),
       ),
     );
   }

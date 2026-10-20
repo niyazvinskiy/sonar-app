@@ -12,8 +12,9 @@ import 'package:window_manager/window_manager.dart';
 
 part 'window_notifier.g.dart';
 
-const minimumWindowSize = Size(368, 568);
-const defaultWindowSize = Size(868, 668);
+// Sonar: вертикальное окно, как у плеера
+const minimumWindowSize = Size(380, 620);
+const defaultWindowSize = Size(460, 780);
 
 @Riverpod(keepAlive: true)
 class WindowNotifier extends _$WindowNotifier with AppLogger {

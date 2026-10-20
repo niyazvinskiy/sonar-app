@@ -3,7 +3,6 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
-import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/settings/notifier/config_option/config_option_notifier.dart';
 import 'package:hiddify/features/settings/notifier/reset_tunnel/reset_tunnel_notifier.dart';
@@ -57,6 +56,12 @@ class SettingsPage extends HookConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        // Sonar: меню нет, поэтому назад на главную ведёт стрелка
+        leading: IconButton(
+          tooltip: 'На главную',
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => context.go('/home'),
+        ),
         title: Text(t.pages.settings.title),
         actions: [
           MenuAnchor(
@@ -184,18 +189,11 @@ class SettingsPage extends HookConsumerWidget {
                 },
               ),
             ),
-          if (Breakpoint(context).isMobile()) ...[
-            SettingsSection(
-              title: t.pages.logs.title,
-              icon: Icons.description_rounded,
-              namedLocation: context.namedLocation('logs'),
-            ),
-            SettingsSection(
-              title: t.pages.about.title,
-              icon: Icons.info_rounded,
-              namedLocation: context.namedLocation('about'),
-            ),
-          ],
+          SettingsSection(
+            title: t.pages.about.title,
+            icon: Icons.info_rounded,
+            namedLocation: context.namedLocation('about'),
+          ),
         ],
       ),
     );

@@ -1,7 +1,7 @@
 name: hiddify
 description: Cross Platform Multi Protocol Proxy Frontend.
 publish_to: "none"
-version: 1.0.1+10001
+version: 1.1.0+11000
 
 environment:
   sdk: ^3.10.4
@@ -164,6 +164,17 @@ flutter:
     - assets/images/source/ic_launcher_border.png
 
   fonts:
+    # Sonar: шрифт сайта, статические начертания из Jost[wght] (OFL, assets/fonts/Jost-OFL.txt)
+    - family: Jost
+      fonts:
+        - asset: assets/fonts/Jost-300.ttf
+          weight: 300
+        - asset: assets/fonts/Jost-400.ttf
+          weight: 400
+        - asset: assets/fonts/Jost-500.ttf
+          weight: 500
+        - asset: assets/fonts/Jost-600.ttf
+          weight: 600
     - family: Shabnam
       fonts:
         - asset: assets/fonts/Shabnam.ttf

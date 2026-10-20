@@ -14,7 +14,6 @@ import 'package:hiddify/features/home/widget/home_page.dart';
 import 'package:hiddify/features/log/overview/logs_page.dart';
 import 'package:hiddify/features/profile/details/profile_details_page.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
-import 'package:hiddify/features/profile/overview/profiles_page.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_page.dart';
 import 'package:hiddify/features/route_rules/notifier/rule_notifier.dart';
 import 'package:hiddify/features/route_rules/overview/generic_list_page.dart';
@@ -47,25 +46,19 @@ final loadingConfig = RoutingConfig(
   routes: <RouteBase>[GoRoute(path: '/home', builder: (context, state) => const Material())],
 );
 
-String getNameOfBranch(bool isMobileBreakpoint, bool showProfilesAction, int index) => isMobileBreakpoint
-    ? ['home', 'settings'][index]
-    : ['home', if (showProfilesAction) 'profiles', 'settings', 'logs', 'about'][index];
+// Sonar: две ветки на всех платформах, профили и логи из меню убраны
+String getNameOfBranch(bool isMobileBreakpoint, bool showProfilesAction, int index) => ['home', 'settings'][index];
 
-int getIndexOfBranch(bool isMobileBreakpoint, bool showProfilesAction, String name) => isMobileBreakpoint
-    ? ['home', 'settings'].indexOf(name)
-    : ['home', if (showProfilesAction) 'profiles', 'settings', 'logs', 'about'].indexOf(name);
+int getIndexOfBranch(bool isMobileBreakpoint, bool showProfilesAction, String name) =>
+    ['home', 'settings'].indexOf(name);
 
 @Riverpod(keepAlive: true)
 class RoutingConfigNotifier extends _$RoutingConfigNotifier {
   @override
   RoutingConfig build() {
     final isMobileBreakpoint = ref.watch(isMobileBreakpointProvider);
-    final bool showProfilesAction;
-    if (isMobileBreakpoint == true) {
-      showProfilesAction = false;
-    } else {
-      showProfilesAction = ref.watch(hasAnyProfileProvider).value ?? false;
-    }
+    // Sonar: профилей в меню нет, подписка одна и добавляется сама
+    const showProfilesAction = false;
     if (isMobileBreakpoint == null) return loadingConfig;
     return RoutingConfig(
       redirect: (context, state) {
@@ -134,41 +127,19 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                       pageBuilder: (_, state) =>
                           customTransition(TransitionType.fade, state.pageKey, const ProxiesOverviewPage()),
                     ),
-                    if (isMobileBreakpoint)
-                      GoRoute(
-                        name: 'profileDetails',
-                        path: 'profile-details/:id',
-                        pageBuilder: (_, state) => customTransition(
-                          TransitionType.fade,
-                          state.pageKey,
-                          ProfileDetailsPage(id: state.pathParameters['id']!),
-                        ),
+                    GoRoute(
+                      name: 'profileDetails',
+                      path: 'profile-details/:id',
+                      pageBuilder: (_, state) => customTransition(
+                        TransitionType.fade,
+                        state.pageKey,
+                        ProfileDetailsPage(id: state.pathParameters['id']!),
                       ),
+                    ),
                   ],
                 ),
               ],
             ),
-            if (showProfilesAction)
-              StatefulShellBranch(
-                routes: <GoRoute>[
-                  GoRoute(
-                    name: 'profiles',
-                    path: '/profiles',
-                    builder: (_, _) => FocusScope(node: branchesScope['profiles'], child: const ProfilesPage()),
-                    routes: <GoRoute>[
-                      GoRoute(
-                        name: 'profileDetails',
-                        path: 'profile-details/:id',
-                        pageBuilder: (_, state) => customTransition(
-                          TransitionType.fade,
-                          state.pageKey,
-                          ProfileDetailsPage(id: state.pathParameters['id']!),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
             StatefulShellBranch(
               routes: <GoRoute>[
                 GoRoute(
@@ -271,44 +242,23 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                       pageBuilder: (_, state) =>
                           customTransition(TransitionType.slide, state.pageKey, const ChainOptionsPage()),
                     ),
-                    if (isMobileBreakpoint) ...[
-                      GoRoute(
-                        name: 'logs',
-                        path: 'logs',
-                        pageBuilder: (_, state) =>
-                            customTransition(TransitionType.slide, state.pageKey, const LogsPage()),
-                      ),
-                      GoRoute(
-                        name: 'about',
-                        path: 'about',
-                        pageBuilder: (_, state) =>
-                            customTransition(TransitionType.slide, state.pageKey, const AboutPage()),
-                      ),
-                    ],
+                    // Sonar: «О программе» и журнал живут внутри настроек на всех платформах
+                    GoRoute(
+                      name: 'logs',
+                      path: 'logs',
+                      pageBuilder: (_, state) =>
+                          customTransition(TransitionType.slide, state.pageKey, const LogsPage()),
+                    ),
+                    GoRoute(
+                      name: 'about',
+                      path: 'about',
+                      pageBuilder: (_, state) =>
+                          customTransition(TransitionType.slide, state.pageKey, const AboutPage()),
+                    ),
                   ],
                 ),
               ],
             ),
-            if (!isMobileBreakpoint) ...[
-              StatefulShellBranch(
-                routes: <GoRoute>[
-                  GoRoute(
-                    name: 'logs',
-                    path: '/logs',
-                    builder: (_, _) => FocusScope(node: branchesScope['logs'], child: const LogsPage()),
-                  ),
-                ],
-              ),
-              StatefulShellBranch(
-                routes: <GoRoute>[
-                  GoRoute(
-                    name: 'about',
-                    path: '/about',
-                    builder: (_, _) => FocusScope(node: branchesScope['about'], child: const AboutPage()),
-                  ),
-                ],
-              ),
-            ],
           ],
         ),
         GoRoute(name: 'intro', path: '/intro', builder: (_, _) => const SonarIntro()),

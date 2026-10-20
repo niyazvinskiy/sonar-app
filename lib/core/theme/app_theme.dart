@@ -1,10 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/theme/app_theme_mode.dart';
 import 'package:hiddify/core/theme/theme_extensions.dart';
 
 class AppTheme {
   AppTheme(this.mode, this.fontFamily);
+
+  // флаги и эмодзи на Windows рисует свой шрифт, остальное Jost
+  static final _fallback = !kIsWeb && Platform.isWindows ? const ['Emoji'] : null;
   final AppThemeMode mode;
   final String fontFamily;
 
@@ -14,6 +20,7 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       fontFamily: fontFamily,
+      fontFamilyFallback: _fallback,
       extensions: const <ThemeExtension<dynamic>>{ConnectionButtonTheme.light},
     );
   }
@@ -46,6 +53,7 @@ class AppTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: mode.trueBlack ? Colors.black : const Color(0xFF070B16),
       fontFamily: fontFamily,
+      fontFamilyFallback: _fallback,
       extensions: const <ThemeExtension<dynamic>>{ConnectionButtonTheme.light},
     );
   }

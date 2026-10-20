@@ -1,12 +1,9 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:hiddify/gen/fonts.gen.dart';
 import 'package:hiddify/gen/translations.g.dart';
 
 extension AppLocaleX on AppLocale {
-  String get preferredFontFamily =>
-      this == AppLocale.fa ? FontFamily.shabnam : (kIsWeb || !Platform.isWindows ? "" : FontFamily.emoji);
+  // Sonar: Jost, как на сайте; для персидского остаётся Shabnam
+  String get preferredFontFamily => this == AppLocale.fa ? FontFamily.shabnam : 'Jost';
 
   String get localeName => switch (flutterLocale.toString()) {
     "ar" => "العربية",
