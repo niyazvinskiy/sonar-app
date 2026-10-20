@@ -15,10 +15,14 @@
 
 <table>
 <tr>
-<td><img src="docs/sonar/intro.png" alt="Первый запуск" width="100%"></td>
-<td><img src="docs/sonar/home-idle.png" alt="Покой" width="100%"></td>
-<td><img src="docs/sonar/home-connected.png" alt="В сети" width="100%"></td>
-<td><img src="docs/sonar/channels.png" alt="Выбор канала" width="100%"></td>
+<td width="33%"><img src="docs/sonar/intro.jpg" alt="Первый запуск" width="100%"></td>
+<td width="33%"><img src="docs/sonar/home-idle.jpg" alt="Покой" width="100%"></td>
+<td width="33%"><img src="docs/sonar/home-connected.jpg" alt="В сети: время, пинг, скорость, сервер и трафик за сеанс" width="100%"></td>
+</tr>
+<tr>
+<td><img src="docs/sonar/channels.jpg" alt="Выбор канала" width="100%"></td>
+<td><img src="docs/sonar/settings.jpg" alt="Настройки: версия и обновления, пункты в группах" width="100%"></td>
+<td><img src="docs/sonar/about.jpg" alt="О программе" width="100%"></td>
 </tr>
 </table>
 

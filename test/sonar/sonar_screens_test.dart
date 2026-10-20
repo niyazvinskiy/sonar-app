@@ -16,10 +16,10 @@ import 'package:hiddify/core/model/environment.dart';
 import 'package:hiddify/core/preferences/preferences_provider.dart';
 import 'package:hiddify/core/theme/app_theme.dart';
 import 'package:hiddify/core/theme/app_theme_mode.dart';
+import 'package:hiddify/features/about/widget/about_page.dart';
 import 'package:hiddify/features/auto_start/notifier/auto_start_notifier.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/features/route_rules/notifier/rules_notifier.dart';
-import 'package:hiddify/features/about/widget/about_page.dart';
 import 'package:hiddify/features/settings/overview/sections/dns_options_page.dart';
 import 'package:hiddify/features/settings/overview/sections/general_page.dart';
 import 'package:hiddify/features/settings/overview/sections/inbound_options_page.dart';
@@ -105,8 +105,8 @@ Future<List<Override>> _app() async {
   final prefs = await SharedPreferences.getInstance();
   return [
     environmentProvider.overrideWithValue(Environment.prod),
-    translationsProvider.overrideWith((ref) async => ru),
-    sharedPreferencesProvider.overrideWith((ref) async => prefs),
+    translationsProvider.overrideWith((ref) => ru),
+    sharedPreferencesProvider.overrideWith((ref) => prefs),
     autoStartNotifierProvider.overrideWith(_AutoStart.new),
     analyticsControllerProvider.overrideWith(_Analytics.new),
     appDirectoriesProvider.overrideWith(_Directories.new),

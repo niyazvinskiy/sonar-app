@@ -56,7 +56,9 @@ class SystemTrayNotifier extends _$SystemTrayNotifier with TrayListener, AppLogg
 
   Menu _trayMenu(ConnectionStatus connection, ServiceMode serviceMode, Translations t) => Menu(
     items: [
-      if (PlatformUtils.isLinux) ...[MenuItem(key: 'dashboard', label: t.common.dashboard), MenuItem.separator()],
+      // Sonar: открыть окно можно и из меню, не только щелчком по значку
+      MenuItem(key: 'dashboard', label: 'Открыть Sonar'),
+      MenuItem.separator(),
       MenuItem(
         key: 'connection',
         label: switch (connection) {
@@ -105,10 +107,10 @@ class SystemTrayNotifier extends _$SystemTrayNotifier with TrayListener, AppLogg
   }
 
   String _trayTooltip(ConnectionStatus connection, int urlTestDelay, Translations t) {
-    final r = "${Constants.appName} - ${connection.present(t)}";
+    final r = "${Constants.appName} · ${connection is Disconnected ? 'не подключён' : connection.present(t)}";
     if (connection is Connected) {
       if (Platform.isMacOS) windowManager.setBadgeLabel("${urlTestDelay}ms");
-      return '$r : ${urlTestDelay}ms"';
+      return '$r, $urlTestDelay мс';
     } else {
       if (Platform.isMacOS) windowManager.setBadgeLabel("-ms");
       return r;
