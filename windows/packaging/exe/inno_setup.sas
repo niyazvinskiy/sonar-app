@@ -2,10 +2,18 @@
 ; от значка, Inno Setup находит их тем же способом, что и сам значок
 #define SonarIcon "{{SETUP_ICON_FILE}}"
 #define SonarArt ExtractFilePath(SonarIcon) + "..\..\packaging\exe\art\"
+; В заголовке и списке программ версия без номера сборки: 1.2.2, а не 1.2.2+12002
+#define SonarFull "{{APP_VERSION}}"
+#if Pos("+", SonarFull) > 0
+#define SonarVersion Copy(SonarFull, 1, Pos("+", SonarFull) - 1)
+#else
+#define SonarVersion SonarFull
+#endif
 
 [Setup]
 AppId={{APP_ID}}
-AppVersion={{APP_VERSION}}
+#emit "AppVersion=" + SonarVersion
+#emit "AppVerName={{DISPLAY_NAME}} " + SonarVersion
 AppName={{DISPLAY_NAME}}
 AppPublisher={{PUBLISHER_NAME}}
 AppPublisherURL={{PUBLISHER_URL}}
@@ -27,7 +35,9 @@ WizardBackColor=#070B16
 #emit "WizardBackImageFile=" + SonarArt + "back-596.png," + SonarArt + "back-894.png," + SonarArt + "back-1192.png," + SonarArt + "back-1630.png"
 #emit "WizardImageFile=" + SonarArt + "drop-*.png"
 #emit "WizardSmallImageFile=" + SonarArt + "small-*.png"
-; Язык по языку Windows, без лишнего окна выбора; папка своя, в профиле
+; Три экрана: приветствие с каплей, установка, готово. Язык по языку Windows,
+; папка своя, в профиле, поэтому ни выбора языка, ни папки, ни «Готово к установке»
+DisableWelcomePage=no
 ShowLanguageDialog=no
 DisableDirPage=yes
 DisableReadyPage=yes
@@ -77,22 +87,24 @@ english.FinishedHeadingLabel=Sonar is installed
 english.FinishedLabelNoIcons=Open Sonar and press Start: your personal key is created automatically. From then on the app updates itself.
 english.FinishedLabel=Open Sonar and press Start: your personal key is created automatically. From then on the app updates itself.
 
-[Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: {% if CREATE_DESKTOP_ICON != true %}unchecked{% else %}checkedonce{% endif %}
-Name: "launchAtStartup"; Description: "{cm:AutoStartProgram,{{DISPLAY_NAME}}}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: {% if LAUNCH_AT_STARTUP != true %}unchecked{% else %}checkedonce{% endif %}
+; Sonar: шага с галочками нет. Значок на рабочем столе ставится при обычной установке,
+; а тихое автообновление его не трогает: удалённый значок не возвращается сам.
+; Автозапуск включается в настройках Sonar.
 [Files]
 Source: "{{SOURCE_DIR}}\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
 Name: "{autoprograms}\\{{DISPLAY_NAME}}"; Filename: "{app}\\{{EXECUTABLE_NAME}}"
-Name: "{autodesktop}\\{{DISPLAY_NAME}}"; Filename: "{app}\\{{EXECUTABLE_NAME}}"; Tasks: desktopicon
-Name: "{userstartup}\\{{DISPLAY_NAME}}"; Filename: "{app}\\{{EXECUTABLE_NAME}}"; WorkingDir: "{app}"; Tasks: launchAtStartup
+Name: "{autodesktop}\\{{DISPLAY_NAME}}"; Filename: "{app}\\{{EXECUTABLE_NAME}}"; Check: not WizardSilent
 [Run]
 Filename: "{app}\\{{EXECUTABLE_NAME}}"; Description: "{cm:LaunchProgram,{{DISPLAY_NAME}}}"; Flags: {% if PRIVILEGES_REQUIRED == 'admin' %}runascurrentuser{% endif %} nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{userappdata}\Sonar"
+; ярлыки от прошлых установок, которые новый журнал удаления не знает
+Type: files; Name: "{autodesktop}\{{DISPLAY_NAME}}.lnk"
+Type: files; Name: "{userstartup}\{{DISPLAY_NAME}}.lnk"
 
 [Code]
 // Работающий Sonar закрываем прямо перед копированием файлов, а не при открытии
