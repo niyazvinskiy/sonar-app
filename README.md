@@ -36,10 +36,10 @@ Sonar это форк [Hiddify](https://github.com/hiddify/hiddify-app). Изм�
 
 ## Сборка
 
-Релиз собирается сам при теге `vX.Y.Z`:
+Релиз собирается сам при теге `sonar-vX.Y.Z` (теги `v…` заняты историей Hiddify), версия в `pubspec.yaml` должна совпадать:
 
 ```bash
-git tag v1.0.1 && git push origin v1.0.1
+git tag sonar-v1.0.1 && git push origin sonar-v1.0.1
 ```
 
 Секреты репозитория:

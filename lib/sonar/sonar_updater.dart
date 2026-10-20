@@ -78,7 +78,7 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
       );
       if (r.statusCode != 200 || r.data is! Map) return;
       final release = (r.data as Map).cast<String, dynamic>();
-      final tag = (release['tag_name'] as String? ?? '').replaceFirst(RegExp('^v'), '');
+      final tag = (release['tag_name'] as String? ?? '').replaceFirst(RegExp('^(sonar-)?v'), '');
       final latest = Version.parse(tag.split('+').first);
       if (latest <= current) return;
 

@@ -241,13 +241,14 @@ jobs:
       - name: Release message
         run: |
           sed 's|RELEASE_TAG|${{ env.TAG_NAME }}|g' ./.github/release_message.md > release.md
+          echo "VERSION=${TAG_NAME#sonar-v}" >> $GITHUB_ENV
           ls -la ./out
       # Не prerelease: releases/latest должен указывать на этот выпуск
       - name: Upload Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
-          name: Sonar ${{ env.TAG_NAME }}
+          name: Sonar ${{ env.VERSION }}
           body_path: './release.md'
           files: ./out/*
           prerelease: false
