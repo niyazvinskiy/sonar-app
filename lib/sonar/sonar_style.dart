@@ -110,6 +110,13 @@ String sonarSpeed(int bytesPerSecond) {
   return '${mb.toStringAsFixed(mb < 10 ? 1 : 0).replaceAll('.', ',')} МБ/с';
 }
 
+/// Промежуток по-русски: «10 мин», «2 ч».
+String sonarDuration(Duration d) {
+  if (d.inMinutes < 1) return '${d.inSeconds} с';
+  if (d.inMinutes < 60 || d.inMinutes % 60 != 0) return '${d.inMinutes} мин';
+  return '${d.inHours} ч';
+}
+
 String sonarElapsed(Duration d) {
   final h = d.inHours;
   final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');

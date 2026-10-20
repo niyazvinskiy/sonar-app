@@ -8,14 +8,17 @@ import 'package:hiddify/sonar/sonar_style.dart';
 /// Живой фон: ночная вода и медленное северное сияние цвета настроения.
 /// Когда Sonar подключён, облака ярче и плывут быстрее.
 class SonarAurora extends HookWidget {
-  const SonarAurora({super.key, required this.mood, this.child});
+  const SonarAurora({super.key, required this.mood, this.child, this.calm = false});
 
   final SonarMood mood;
   final Widget? child;
 
+  /// Без движения: для экранов, где фон только настроение, а не жизнь соединения
+  final bool calm;
+
   @override
   Widget build(BuildContext context) {
-    final still = MediaQuery.of(context).disableAnimations;
+    final still = calm || MediaQuery.of(context).disableAnimations;
     final clock = useAnimationController(duration: const Duration(minutes: 2));
     useEffect(() {
       if (still) {

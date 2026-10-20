@@ -5,8 +5,13 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/features/settings/notifier/config_option/config_option_notifier.dart';
 import 'package:hiddify/features/settings/notifier/reset_tunnel/reset_tunnel_notifier.dart';
+import 'package:hiddify/sonar/sonar.dart';
+import 'package:hiddify/sonar/sonar_aurora.dart';
+import 'package:hiddify/sonar/sonar_settings.dart';
+import 'package:hiddify/sonar/sonar_style.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 enum ConfigOptionSection {
   warp,
@@ -54,7 +59,9 @@ class SettingsPage extends HookConsumerWidget {
     // );
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
         // Sonar: меню нет, поэтому назад на главную ведёт стрелка
         leading: IconButton(
           tooltip: 'На главную',
@@ -143,58 +150,98 @@ class SettingsPage extends HookConsumerWidget {
           const Gap(8),
         ],
       ),
-      body: ListView(
-        children: [
-          // TipCard(message: t.settings.experimentalMsg),
-          SettingsSection(
-            title: t.pages.settings.general.title,
-            icon: Icons.layers_rounded,
-            namedLocation: context.namedLocation('general'),
-          ),
-          SettingsSection(
-            title: t.pages.settings.routing.title,
-            icon: Icons.route_rounded,
-            namedLocation: context.namedLocation('routingOptions'),
-          ),
-          // Sonar: тонкие настройки ядра отдельно, обычно их не трогают
-          const Padding(
-            padding: EdgeInsetsDirectional.fromSTEB(16, 20, 16, 4),
-            child: Text(
-              'ДЛЯ ОПЫТНЫХ',
-              style: TextStyle(fontFamily: 'Jost', fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 1.6),
-            ),
-          ),
-          SettingsSection(
-            title: t.pages.settings.dns.title,
-            icon: Icons.dns_rounded,
-            namedLocation: context.namedLocation('dnsOptions'),
-          ),
-          SettingsSection(
-            title: t.pages.settings.inbound.title,
-            icon: Icons.input_rounded,
-            namedLocation: context.namedLocation('inboundOptions'),
-          ),
-          SettingsSection(
-            title: t.pages.settings.tlsTricks.title,
-            icon: Icons.content_cut_rounded,
-            namedLocation: context.namedLocation('tlsTricks'),
-          ),
-          if (PlatformUtils.isIOS)
-            Material(
-              child: ListTile(
-                title: Text(t.pages.settings.resetTunnel),
-                leading: const Icon(Icons.autorenew_rounded),
-                onTap: () async {
-                  await ref.read(resetTunnelNotifierProvider.notifier).run();
-                },
+      body: SonarAurora(
+        mood: SonarMood.idle,
+        calm: true,
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 620),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+                children: [
+                  const SonarAppCard(),
+                  const SonarSettingsLabel('Основное'),
+                  SonarSettingsGroup(
+                    children: [
+                      SonarSettingsTile(
+                        icon: Icons.tune_rounded,
+                        title: t.pages.settings.general.title,
+                        subtitle: PlatformUtils.isDesktop ? 'Язык, автозапуск, окно' : 'Язык, уведомления, батарея',
+                        onTap: () => context.go(context.namedLocation('general')),
+                      ),
+                      SonarSettingsTile(
+                        icon: Icons.alt_route_rounded,
+                        tint: const Color(0xFF5EEAD4),
+                        title: t.pages.settings.routing.title,
+                        subtitle: 'Что идёт через Sonar, а что напрямую',
+                        onTap: () => context.go(context.namedLocation('routingOptions')),
+                      ),
+                    ],
+                  ),
+                  // Sonar: тонкие настройки ядра отдельно, обычно их не трогают
+                  const SonarSettingsLabel('Для опытных'),
+                  SonarSettingsGroup(
+                    children: [
+                      SonarSettingsTile(
+                        icon: Icons.dns_rounded,
+                        tint: const Color(0xFFB48CFF),
+                        title: t.pages.settings.dns.title,
+                        subtitle: 'Через какие серверы искать адреса',
+                        onTap: () => context.go(context.namedLocation('dnsOptions')),
+                      ),
+                      SonarSettingsTile(
+                        icon: Icons.input_rounded,
+                        tint: const Color(0xFFB48CFF),
+                        title: t.pages.settings.inbound.title,
+                        subtitle: 'Режим работы, порты, локальная сеть',
+                        onTap: () => context.go(context.namedLocation('inboundOptions')),
+                      ),
+                      SonarSettingsTile(
+                        icon: Icons.content_cut_rounded,
+                        tint: const Color(0xFFB48CFF),
+                        title: t.pages.settings.tlsTricks.title,
+                        subtitle: 'Маскировка для очень строгих сетей',
+                        onTap: () => context.go(context.namedLocation('tlsTricks')),
+                      ),
+                      if (PlatformUtils.isIOS)
+                        SonarSettingsTile(
+                          icon: Icons.autorenew_rounded,
+                          tint: const Color(0xFFFFC979),
+                          title: t.pages.settings.resetTunnel,
+                          trailing: const SizedBox(),
+                          onTap: () async => await ref.read(resetTunnelNotifierProvider.notifier).run(),
+                        ),
+                    ],
+                  ),
+                  const SonarSettingsLabel('Sonar'),
+                  SonarSettingsGroup(
+                    children: [
+                      SonarSettingsTile(
+                        icon: Icons.devices_rounded,
+                        tint: const Color(0xFF5EEAD4),
+                        title: 'Другие устройства',
+                        subtitle: 'Скачать Sonar на телефон или компьютер',
+                        trailing: Icon(
+                          Icons.north_east_rounded,
+                          size: 18,
+                          color: const Color(Sonar.feather).withValues(alpha: .6),
+                        ),
+                        onTap: () => launchUrl(Uri.parse(Sonar.site), mode: LaunchMode.externalApplication),
+                      ),
+                      SonarSettingsTile(
+                        icon: Icons.info_outline_rounded,
+                        title: t.pages.about.title,
+                        subtitle: 'Версия, лицензии, рабочая папка',
+                        onTap: () => context.go(context.namedLocation('about')),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          SettingsSection(
-            title: t.pages.about.title,
-            icon: Icons.info_rounded,
-            namedLocation: context.namedLocation('about'),
           ),
-        ],
+        ),
       ),
     );
   }

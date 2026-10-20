@@ -8,9 +8,9 @@ import 'package:hiddify/features/auto_start/notifier/auto_start_notifier.dart';
 import 'package:hiddify/features/common/general_pref_tiles.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/features/settings/widget/preference_tile.dart';
+import 'package:hiddify/sonar/sonar_style.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:humanizer/humanizer.dart';
 
 class GeneralPage extends HookConsumerWidget {
   const GeneralPage({super.key});
@@ -23,8 +23,7 @@ class GeneralPage extends HookConsumerWidget {
       body: ListView(
         children: [
           const LocalePrefTile(),
-          const ThemeModePrefTile(),
-          const EnableAnalyticsPrefTile(),
+          // Sonar: тема всегда ночная, аналитики нет, поэтому эти пункты не показываем
           SwitchListTile.adaptive(
             title: Text(t.pages.settings.general.autoIpCheck),
             value: ref.watch(Preferences.autoCheckIp),
@@ -81,7 +80,7 @@ class GeneralPage extends HookConsumerWidget {
           ),
           ListTile(
             title: Text(t.pages.settings.general.urlTestInterval),
-            subtitle: Text(ref.watch(ConfigOptions.urlTestInterval).toApproximateTime(isRelativeToNow: false)),
+            subtitle: Text(sonarDuration(ref.watch(ConfigOptions.urlTestInterval))),
             leading: const Icon(Icons.timer_rounded),
             onTap: () async => await ref
                 .read(dialogNotifierProvider.notifier)
@@ -92,7 +91,7 @@ class GeneralPage extends HookConsumerWidget {
                   min: 1,
                   max: 60,
                   divisions: 60,
-                  labelGen: (value) => Duration(minutes: value.toInt()).toApproximateTime(isRelativeToNow: false),
+                  labelGen: (value) => sonarDuration(Duration(minutes: value.toInt())),
                 )
                 .then((value) async {
                   if (value == null) return;

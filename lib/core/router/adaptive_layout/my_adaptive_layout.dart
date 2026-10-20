@@ -48,6 +48,12 @@ class MyAdaptiveLayout extends HookConsumerWidget {
         HardwareKeyboard.instance.removeHandler(handler);
       };
     }, [isMobileBreakpoint, showProfilesAction, navigationShell.currentIndex]);
+    // Sonar: главный экран и настройки сменяют друг друга плавно, а не мгновенной подменой
+    final reveal = useAnimationController(duration: const Duration(milliseconds: 260), initialValue: 1);
+    useValueChanged<int, void>(navigationShell.currentIndex, (_, _) {
+      if (!MediaQuery.of(context).disableAnimations) reveal.forward(from: 0);
+    });
+    final revealCurve = useMemoized(() => CurvedAnimation(parent: reveal, curve: Curves.easeOutCubic), [reveal]);
     // Owns the system back press for the whole shell.
     //
     // It has to sit here, on the visible shell, and nowhere else. A PopScope
@@ -89,7 +95,11 @@ class MyAdaptiveLayout extends HookConsumerWidget {
         // Sonar: без боковой панели и нижнего меню, как в плеере: главный экран
         // на всё окно, настройки открываются шестерёнкой
         child: Material(
-          child: FocusScope(node: navScopeNode, child: navigationShell),
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: FadeTransition(
+            opacity: revealCurve,
+            child: FocusScope(node: navScopeNode, child: navigationShell),
+          ),
         ),
       ),
     );
