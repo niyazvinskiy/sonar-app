@@ -2,6 +2,8 @@ app_id: 7C1A5D3E-2B64-4F8A-9E37-5D0B8C6A41F2
 publisher: Sonar
 publisher_url: https://github.com/niyazvinskiy/sonar-app
 display_name: Sonar
+# Без этого сборщик ищет hiddify.exe и берёт первую попавшуюся программу (HiddifyCli.exe)
+executable_name: Sonar.exe
 create_desktop_icon: true
 install_dir_name: "{autopf}\\Sonar"
 privileges_required: lowest

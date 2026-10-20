@@ -3,7 +3,6 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
-import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/settings/notifier/config_option/config_option_notifier.dart';
 import 'package:hiddify/features/settings/notifier/reset_tunnel/reset_tunnel_notifier.dart';
 import 'package:hiddify/utils/utils.dart';
@@ -152,17 +151,18 @@ class SettingsPage extends HookConsumerWidget {
             icon: Icons.layers_rounded,
             namedLocation: context.namedLocation('general'),
           ),
-          if (ref.watch(hasAnyProfileProvider).value ?? false)
-            SettingsSection(
-              title: t.pages.settings.chain.title,
-              icon: Icons.webhook_rounded,
-              subtitle: Text(t.pages.settings.chain.subtitle),
-              namedLocation: context.namedLocation('chainOptions'),
-            ),
           SettingsSection(
             title: t.pages.settings.routing.title,
             icon: Icons.route_rounded,
             namedLocation: context.namedLocation('routingOptions'),
+          ),
+          // Sonar: тонкие настройки ядра отдельно, обычно их не трогают
+          const Padding(
+            padding: EdgeInsetsDirectional.fromSTEB(16, 20, 16, 4),
+            child: Text(
+              'ДЛЯ ОПЫТНЫХ',
+              style: TextStyle(fontFamily: 'Jost', fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 1.6),
+            ),
           ),
           SettingsSection(
             title: t.pages.settings.dns.title,
