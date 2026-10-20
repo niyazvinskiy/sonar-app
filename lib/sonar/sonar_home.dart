@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/model/constants.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
@@ -41,6 +42,19 @@ class SonarHome extends HookConsumerWidget {
     final smart = ref.watch(rulesNotifierProvider).sonarSmart;
 
     final connected = status.valueOrNull is Connected;
+
+    // Сразу после «Начать»: подключаемся, как только ядро сообщило, что готово
+    void autoConnect(AsyncValue<ConnectionStatus> s) {
+      if (!ref.read(sonarConnectOnHomeProvider) || s.valueOrNull is! Disconnected) return;
+      ref.read(sonarConnectOnHomeProvider.notifier).state = false;
+      ref.read(connectionNotifierProvider.notifier).toggleConnection();
+    }
+
+    ref.listen(connectionNotifierProvider, (_, next) => autoConnect(next));
+    useEffect(() {
+      Future.microtask(() => autoConnect(ref.read(connectionNotifierProvider)));
+      return null;
+    }, const []);
     final sphere = switch (status) {
       _ when keyStatus is SonarKeyIssuing => SphereState.connecting,
       _ when keyStatus is SonarKeyFailed => SphereState.failed,
@@ -49,6 +63,8 @@ class SonarHome extends HookConsumerWidget {
       AsyncValue(valueOrNull: Connecting()) || AsyncValue(valueOrNull: Disconnecting()) => SphereState.connecting,
       AsyncValue(valueOrNull: Connected()) when delay == 0 => SphereState.connecting,
       AsyncValue(valueOrNull: Connected()) => SphereState.connected,
+      // ядро ещё не сообщило состояние: показываем запуск, а не «нажмите»
+      AsyncLoading(valueOrNull: null) => SphereState.connecting,
       _ => SphereState.idle,
     };
 
@@ -56,6 +72,7 @@ class SonarHome extends HookConsumerWidget {
       _ when keyStatus is SonarKeyIssuing => 'Получаю личный ключ…',
       _ when keyStatus is SonarKeyFailed => 'Ключ не получен',
       SphereState.connected => 'Подключено',
+      SphereState.connecting when status.valueOrNull == null => 'Запускаю Sonar…',
       SphereState.connecting => status.valueOrNull is Disconnecting ? 'Отключаю…' : 'Подключаю…',
       SphereState.failed => 'Не удалось подключиться',
       SphereState.idle => hasProfile ? 'Коснитесь капли' : 'Коснитесь капли, чтобы начать',

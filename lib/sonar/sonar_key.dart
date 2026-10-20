@@ -53,3 +53,8 @@ class SonarKeyNotifier extends Notifier<SonarKeyStatus> {
 }
 
 final sonarKeyProvider = NotifierProvider<SonarKeyNotifier, SonarKeyStatus>(SonarKeyNotifier.new);
+
+/// Первый запуск закончился: главный экран подключит Sonar сам, как только ядро
+/// сообщит, что готово. Экран «Начать» к этому моменту уже закрыт, поэтому сам
+/// он подключать не может.
+final sonarConnectOnHomeProvider = StateProvider<bool>((ref) => false);

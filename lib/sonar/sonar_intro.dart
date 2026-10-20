@@ -4,7 +4,6 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hiddify/core/analytics/analytics_controller.dart';
 import 'package:hiddify/core/model/region.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
-import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/sonar/sonar.dart';
 import 'package:hiddify/sonar/sonar_key.dart';
@@ -35,12 +34,11 @@ class SonarIntro extends HookConsumerWidget {
           }
         } catch (_) {}
         if (!await ref.read(sonarKeyProvider.notifier).ensure()) return;
+        // Ключ на месте: главный экран подключится сам, как и обещали на сайте
+        ref.read(sonarConnectOnHomeProvider.notifier).state = true;
         await ref.read(Preferences.introCompleted.notifier).update(true);
-        // Ключ на месте: подключаемся сразу, как и обещали на сайте
-        await Future<void>.delayed(const Duration(milliseconds: 800));
-        await ref.read(connectionNotifierProvider.notifier).toggleConnection();
       } finally {
-        starting.value = false;
+        if (context.mounted) starting.value = false;
       }
     }
 
