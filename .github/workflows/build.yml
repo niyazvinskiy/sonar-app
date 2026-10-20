@@ -208,7 +208,7 @@ jobs:
 
   update-draft:
     permissions: write-all
-    if: ${{ inputs.upload-artifact && inputs.tag-name == 'draft' }}
+    if: ${{ !cancelled() && inputs.upload-artifact && inputs.tag-name == 'draft' }}
     needs: [build]
     runs-on: ubuntu-latest
     steps:
@@ -239,9 +239,11 @@ jobs:
           prerelease: true
           make_latest: false
 
+  # Выпуск выходит и без macOS: облачный Mac у GitHub иногда так и не выделяется.
+  # Windows и Android обязательны, без них выпуск не публикуется
   upload-release:
     permissions: write-all
-    if: ${{ inputs.upload-artifact && inputs.tag-name != 'draft' }}
+    if: ${{ !cancelled() && inputs.upload-artifact && inputs.tag-name != 'draft' }}
     needs: [build]
     runs-on: ubuntu-latest
     steps:
@@ -252,6 +254,12 @@ jobs:
           merge-multiple: true
           pattern: "*"
           path: ./out/
+      - name: Check required files
+        run: |
+          for f in Sonar-Windows-Setup-x64.exe Sonar-Android-arm64.apk Sonar-Android-arm7.apk Sonar-Android-universal.apk; do
+            test -f "./out/$f" || { echo "нет $f, выпуск не публикую"; exit 1; }
+          done
+          test -f ./out/Sonar-MacOS.dmg || echo "::warning::сборки macOS нет, выпуск без неё"
       - name: Release message
         run: |
           sed 's|RELEASE_TAG|${{ env.TAG_NAME }}|g' ./.github/release_message.md > release.md
