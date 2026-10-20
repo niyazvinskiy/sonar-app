@@ -13,6 +13,15 @@
 
 </div>
 
+<table>
+<tr>
+<td><img src="docs/sonar/intro.png" alt="Первый запуск" width="100%"></td>
+<td><img src="docs/sonar/home-idle.png" alt="Покой" width="100%"></td>
+<td><img src="docs/sonar/home-connected.png" alt="В сети" width="100%"></td>
+<td><img src="docs/sonar/channels.png" alt="Выбор канала" width="100%"></td>
+</tr>
+</table>
+
 ## Что умеет
 
 - **Одна кнопка.** После установки нажмите «Начать»: личный ключ выдаётся сам, без регистрации, и Sonar сразу подключается.
