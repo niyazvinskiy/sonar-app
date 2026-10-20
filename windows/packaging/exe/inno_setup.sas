@@ -86,6 +86,9 @@ english.WelcomeLabel2=Everything opens. Your ping stays put.%n%nYouTube, Discord
 english.FinishedHeadingLabel=Sonar is installed
 english.FinishedLabelNoIcons=Open Sonar and press Start: your personal key is created automatically. From then on the app updates itself.
 english.FinishedLabel=Open Sonar and press Start: your personal key is created automatically. From then on the app updates itself.
+; после приветствия сразу установка, поэтому и кнопка называется «Установить»
+russian.ClickNext=Нажмите «Установить», чтобы начать.
+english.ClickNext=Click Install to begin.
 
 ; Sonar: шага с галочками нет. Значок на рабочем столе ставится при обычной установке,
 ; а тихое автообновление его не трогает: удалённый значок не возвращается сам.
@@ -107,6 +110,12 @@ Type: files; Name: "{autodesktop}\{{DISPLAY_NAME}}.lnk"
 Type: files; Name: "{userstartup}\{{DISPLAY_NAME}}.lnk"
 
 [Code]
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = wpWelcome then
+    WizardForm.NextButton.Caption := SetupMessage(msgButtonInstall);
+end;
+
 // Работающий Sonar закрываем прямо перед копированием файлов, а не при открытии
 // установщика: просто запущенный мастер не должен рвать VPN
 function PrepareToInstall(var NeedsRestart: Boolean): String;
