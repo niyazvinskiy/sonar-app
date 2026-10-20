@@ -20,14 +20,6 @@ namespace
 
   constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
-  /// Registry key for app theme preference.
-  ///
-  /// A value of 0 indicates apps should use dark mode. A non-zero or missing
-  /// value indicates apps should use light mode.
-  constexpr const wchar_t kGetPreferredBrightnessRegKey[] =
-      L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
-  constexpr const wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme";
-
   // The number of Win32Window objects that currently exist.
   static int g_active_window_count = 0;
 
@@ -356,17 +348,14 @@ void Win32Window::OnDestroy()
 
 void Win32Window::UpdateTheme(HWND const window)
 {
-  DWORD light_mode;
-  DWORD light_mode_size = sizeof(light_mode);
-  LSTATUS result = RegGetValue(HKEY_CURRENT_USER, kGetPreferredBrightnessRegKey,
-                               kGetPreferredBrightnessRegValue,
-                               RRF_RT_REG_DWORD, nullptr, &light_mode,
-                               &light_mode_size);
-
-  if (result == ERROR_SUCCESS)
-  {
-    BOOL enable_dark_mode = light_mode == 0;
-    DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
-                          &enable_dark_mode, sizeof(enable_dark_mode));
-  }
+  // Sonar: шапка окна всегда тёмная, как само приложение, при любой теме Windows
+  BOOL enable_dark_mode = TRUE;
+  DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                        &enable_dark_mode, sizeof(enable_dark_mode));
+  // Windows 11: цвет шапки и текста под ночную воду Sonar; Windows 10 эти
+  // атрибуты не знает и просто вернёт ошибку
+  COLORREF caption = RGB(0x07, 0x0B, 0x16);
+  COLORREF text = RGB(0xDD, 0xE2, 0xE8);
+  DwmSetWindowAttribute(window, 35 /* DWMWA_CAPTION_COLOR */, &caption, sizeof(caption));
+  DwmSetWindowAttribute(window, 36 /* DWMWA_TEXT_COLOR */, &text, sizeof(text));
 }
