@@ -1,48 +1,48 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Hiddify AppStream Metadata
+  Sonar AppStream Metadata
   Place this file at: linux/packaging/myappid.appdata.xml
 -->
 <component type="desktop-application">
-  <id>app.hiddify.com</id>
+  <id>app.sonar.vpn</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
 
-  <name>Hiddify</name>
+  <name>Sonar</name>
   <summary>Modern Proxy and VPN Manager for Linux</summary>
 
-  <developer_name>Hiddify</developer_name>
-  <update_contact>linux@hiddify.com</update_contact>
+  <developer_name>Sonar</developer_name>
+  <update_contact>linux@sonar.com</update_contact>
 
   <description>
     <p>
-      Hiddify is an advanced proxy and VPN client built for privacy and control. 
+      Sonar is an advanced proxy and VPN client built for privacy and control. 
       It supports multiple backend protocols including V2Ray, Xray, Clash, and Sing-box, 
       providing flexibility and performance for all kinds of network configurations.
     </p>
     <p>
-      Designed with simplicity in mind, Hiddify helps users connect securely and 
+      Designed with simplicity in mind, Sonar helps users connect securely and 
       manage complex proxy configurations through a clean graphical interface.
     </p>
   </description>
 
   <screenshots>
     <screenshot type="default">
-      <image>https://hiddify.com/assets/hiddify-next-mobile.svg</image>
-      <caption>Main Interface of Hiddify</caption>
+      <image>https://sonar.com/assets/sonar-next-mobile.svg</image>
+      <caption>Main Interface of Sonar</caption>
     </screenshot>
   </screenshots>
 
-  <launchable type="desktop-id">hiddify.desktop</launchable>
+  <launchable type="desktop-id">sonar.desktop</launchable>
 
-  <icon type="stock">hiddify</icon>
+  <icon type="stock">sonar</icon>
 
   <categories>
     <category>Network</category>
   </categories>
 
   <keywords>
-    <keyword>Hiddify</keyword>
+    <keyword>Sonar</keyword>
     <keyword>Proxy</keyword>
     <keyword>VPN</keyword>
     <keyword>V2Ray</keyword>
@@ -53,7 +53,7 @@
   </keywords>
 
   <mime-types>
-    <mime-type>x-scheme-handler/hiddify</mime-type>
+    <mime-type>x-scheme-handler/sonar</mime-type>
     <mime-type>x-scheme-handler/v2ray</mime-type>
     <mime-type>x-scheme-handler/v2rayn</mime-type>
     <mime-type>x-scheme-handler/v2rayng</mime-type>
@@ -62,26 +62,26 @@
     <mime-type>x-scheme-handler/sing-box</mime-type>
   </mime-types>
 
-  <url type="homepage">https://hiddify.com</url>
-  <url type="bugtracker">https://github.com/hiddify/hiddify-app/issues</url>
-  <url type="help">https://docs.hiddify.com</url>
+  <url type="homepage">https://sonar.com</url>
+  <url type="bugtracker">https://github.com/sonar/sonar-app/issues</url>
+  <url type="help">https://docs.sonar.com</url>
 
   <provides>
-    <binary>hiddify</binary>
+    <binary>sonar</binary>
   </provides>
 
   <releases>
     <release version="1.0.0" date="2025-10-25">
       <description>
-        <p>Initial Linux release of Hiddify with multi-protocol support and modern UI.</p>
+        <p>Initial Linux release of Sonar with multi-protocol support and modern UI.</p>
       </description>
     </release>
   </releases>
 
-  <translation type="gettext">hiddify</translation>
+  <translation type="gettext">sonar</translation>
 
   <custom>
-    <value key="PackageName">hiddify</value>
+    <value key="PackageName">sonar</value>
     <value key="Priority">optional</value>
     <value key="Section">x11</value>
     <value key="InstalledSize">6604</value>

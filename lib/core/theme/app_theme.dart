@@ -19,12 +19,32 @@ class AppTheme {
   }
 
   ThemeData darkTheme(ColorScheme? darkColorScheme) {
-    final ColorScheme scheme =
-        darkColorScheme ?? ColorScheme.fromSeed(seedColor: const Color(0xFF293CA0), brightness: Brightness.dark);
+    // Sonar: свои цвета вместо системных, как на сайте
+    final ColorScheme scheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF8FA1C9),
+      brightness: Brightness.dark,
+    ).copyWith(
+      surface: const Color(0xFF0E1630),
+      surfaceContainerLowest: const Color(0xFF070B16),
+      surfaceContainerLow: const Color(0xFF0E1630),
+      surfaceContainer: const Color(0xFF131C38),
+      surfaceContainerHigh: const Color(0xFF1A2442),
+      surfaceContainerHighest: const Color(0xFF1E2D4A),
+      primary: const Color(0xFFDDE2E8),
+      onPrimary: const Color(0xFF070B16),
+      primaryContainer: const Color(0xFF1E2D4A),
+      onPrimaryContainer: const Color(0xFFF6F7F9),
+      secondaryContainer: const Color(0xFF1E2D4A),
+      onSecondaryContainer: const Color(0xFFDDE2E8),
+      onSurface: const Color(0xFFF6F7F9),
+      onSurfaceVariant: const Color(0xFFAEB6C2),
+      outline: const Color(0x47DDE2E8),
+      outlineVariant: const Color(0x1FDDE2E8),
+    );
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: mode.trueBlack ? Colors.black : scheme.surface,
+      scaffoldBackgroundColor: mode.trueBlack ? Colors.black : const Color(0xFF070B16),
       fontFamily: fontFamily,
       extensions: const <ThemeExtension<dynamic>>{ConnectionButtonTheme.light},
     );

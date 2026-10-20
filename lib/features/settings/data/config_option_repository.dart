@@ -33,7 +33,7 @@ abstract class ConfigOptions {
 
   static final region = PreferencesNotifier.create<Region, String>(
     "region",
-    Region.other,
+    Region.ru,
     mapFrom: Region.values.byName,
     mapTo: (value) => value.name,
   );
@@ -84,6 +84,7 @@ abstract class ConfigOptions {
     "udp://1.1.1.1",
     possibleValues: List.of([
       "local",
+      "udp://77.88.8.8",
       "udp://223.5.5.5",
       "udp://1.1.1.1",
       "udp://1.1.1.2",
@@ -93,7 +94,12 @@ abstract class ConfigOptions {
       "4.4.2.2",
       "8.8.8.8",
     ]),
-    defaultValueFunction: (ref) => ref.read(region) == Region.cn ? "223.5.5.5" : "1.1.1.1",
+    defaultValueFunction: (ref) => switch (ref.read(region)) {
+      Region.cn => "223.5.5.5",
+      // Sonar: российские сайты напрямую через DNS Яндекса, он отдаёт ближайшие серверы
+      Region.ru => "udp://77.88.8.8",
+      _ => "1.1.1.1",
+    },
     validator: (value) => value.isNotBlank,
   );
 

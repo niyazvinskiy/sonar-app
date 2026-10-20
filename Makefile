@@ -61,8 +61,8 @@ else
 	TARGET=lib/main.dart
 endif
 
-BUILD_ARGS=--dart-define sentry_dsn=$(SENTRY_DSN)
-DISTRIBUTOR_ARGS=--skip-clean --build-target $(TARGET) --build-dart-define sentry_dsn=$(SENTRY_DSN)
+BUILD_ARGS=--dart-define sentry_dsn=$(SENTRY_DSN) --dart-define SONAR_API=$(SONAR_API)
+DISTRIBUTOR_ARGS=--skip-clean --build-target $(TARGET) --build-dart-define sentry_dsn=$(SENTRY_DSN) --build-dart-define SONAR_API=$(SONAR_API)
 
 
 
@@ -272,7 +272,7 @@ android-apk-release:
 	  --skip-clean \
 	  --build-target=$(TARGET) \
 	  --build-target-platform=android-arm,android-arm64,android-x64 \
-	  --build-dart-define=sentry_dsn=$(SENTRY_DSN)
+	  --build-dart-define=sentry_dsn=$(SENTRY_DSN) --build-dart-define=SONAR_API=$(SONAR_API)
 	ls -R build/app/outputs
 
 android-aab-release:
@@ -281,10 +281,10 @@ android-aab-release:
 	  --targets aab \
 	  --skip-clean \
 	  --build-target=$(TARGET) \
-	  --build-dart-define=sentry_dsn=$(SENTRY_DSN) \
+	  --build-dart-define=sentry_dsn=$(SENTRY_DSN) --build-dart-define=SONAR_API=$(SONAR_API) \
 	  --build-dart-define=release=google-play
 
-windows-release: windows-zip-release windows-exe-release windows-msix-release
+windows-release: windows-zip-release windows-exe-release
 
 windows-zip-release:
 	fastforge package \
@@ -292,7 +292,7 @@ windows-zip-release:
 	  --targets zip \
 	  --skip-clean \
 	  --build-target=$(TARGET) \
-	  --build-dart-define=sentry_dsn=$(SENTRY_DSN) \
+	  --build-dart-define=sentry_dsn=$(SENTRY_DSN) --build-dart-define=SONAR_API=$(SONAR_API) \
 	  --build-dart-define=portable=true
 # 	repacking needs Windows' own tar.exe: GNU tar from Git Bash ignores -a for .zip and writes a plain tar
 	@FULL_PATH=$$(ls dist/*/*.zip | head -n 1); \
@@ -302,15 +302,15 @@ windows-zip-release:
 	$(YELLOW)Post-processing Windows portable$(DONE); \
 	cd "$$ZIP_DIR"; \
 	$(BLUE)Extracting and Repacking...$(DONE); \
-	mkdir -p Hiddify; \
-	unzip -q "$$ZIP_FILE" -d Hiddify/; \
+	mkdir -p Sonar; \
+	unzip -q "$$ZIP_FILE" -d Sonar/; \
 	rm "$$ZIP_FILE"; \
 	if command -v 7z > /dev/null 2>&1; then \
-	  7z a -tzip -bso0 -bsp0 "$$FILE_NAME.zip" Hiddify; \
+	  7z a -tzip -bso0 -bsp0 "$$FILE_NAME.zip" Sonar; \
 	else \
-	  pwsh -NoProfile -Command "Compress-Archive -Path Hiddify -DestinationPath '$$FILE_NAME.zip' -Force"; \
+	  pwsh -NoProfile -Command "Compress-Archive -Path Sonar -DestinationPath '$$FILE_NAME.zip' -Force"; \
 	fi; \
-	rm -rf Hiddify; \
+	rm -rf Sonar; \
 	$(GREEN)Successful$(DONE)
 
 windows-exe-release:
@@ -319,7 +319,7 @@ windows-exe-release:
 	  --targets exe \
 	  --skip-clean \
 	  --build-target=$(TARGET) \
-	  --build-dart-define=sentry_dsn=$(SENTRY_DSN)
+	  --build-dart-define=sentry_dsn=$(SENTRY_DSN) --build-dart-define=SONAR_API=$(SONAR_API)
 
 windows-msix-release:
 	fastforge package \
@@ -327,7 +327,7 @@ windows-msix-release:
 	  --targets msix \
 	  --skip-clean \
 	  --build-target=$(TARGET) \
-	  --build-dart-define=sentry_dsn=$(SENTRY_DSN)
+	  --build-dart-define=sentry_dsn=$(SENTRY_DSN) --build-dart-define=SONAR_API=$(SONAR_API)
 
 linux-release: linux-deb-release linux-appimage-release
 
@@ -343,7 +343,7 @@ linux-deb-release:
 	--targets deb \
 	--skip-clean \
 	--build-target=$(TARGET) \
-	--build-dart-define=sentry_dsn=$(SENTRY_DSN)
+	--build-dart-define=sentry_dsn=$(SENTRY_DSN) --build-dart-define=SONAR_API=$(SONAR_API)
 
 
 # ==============================================================================
@@ -381,7 +381,7 @@ linux-appimage-release:
 	--targets appimage \
 	--skip-clean \
 	--build-target=$(TARGET) \
-	--build-dart-define=sentry_dsn=$(SENTRY_DSN)
+	--build-dart-define=sentry_dsn=$(SENTRY_DSN) --build-dart-define=SONAR_API=$(SONAR_API)
 	@$(YELLOW)Post-processing AppImage$(DONE); \
 	$(BLUE)Extracting AppImage$(DONE); \
 	cd dist/* && ./*.AppImage --appimage-extract > /dev/null; \
@@ -389,24 +389,24 @@ linux-appimage-release:
 	cp ../../linux/packaging/appimage/AppRun squashfs-root/AppRun; \
 	$(BLUE)Granting permissions$(DONE); \
 	chmod +x squashfs-root/AppRun; \
-	$(BLUE)Adding StartupWMClass to hiddify.desktop$(DONE); \
-	sed -i '/^\[Desktop Entry\]/a StartupWMClass=app.hiddify.com' "squashfs-root/hiddify.desktop"; \
+	$(BLUE)Adding StartupWMClass to sonar.desktop$(DONE); \
+	sed -i '/^\[Desktop Entry\]/a StartupWMClass=app.sonar.vpn' squashfs-root/*.desktop; \
 	$(BLUE)Removing old AppImage$(DONE); \
 	rm *.AppImage; \
 	$(BLUE)Deleting bundled libstdc++ to fix Arch Linux compatibility...$(DONE); \
 	find squashfs-root/usr/lib -name "libstdc++.so.6" -delete; \
 	$(BLUE)Rebuilding AppImage$(DONE); \
-	ARCH=x86_64 appimagetool --no-appstream squashfs-root Hiddify.AppImage > /dev/null; \
+	ARCH=x86_64 appimagetool --no-appstream squashfs-root Sonar.AppImage > /dev/null; \
 	$(BLUE)Cleaning up squashfs$(DONE); \
 	rm -rf squashfs-root; \
 	$(YELLOW)Creating Portable Package$(DONE); \
-	PKG_DIR_NAME="hiddify-linux-appimage"; \
+	PKG_DIR_NAME="sonar-linux-appimage"; \
 	$(BLUE)Creating dir: $$PKG_DIR_NAME$(DONE); \
 	mkdir -p "$$PKG_DIR_NAME"; \
-	$(BLUE)Moving Hiddify.AppImage$(DONE); \
-	cp -p "Hiddify.AppImage" "$$PKG_DIR_NAME/Hiddify.AppImage"; \
+	$(BLUE)Moving Sonar.AppImage$(DONE); \
+	cp -p "Sonar.AppImage" "$$PKG_DIR_NAME/Sonar.AppImage"; \
 	$(BLUE)Creating Portable Home directory$(DONE); \
-	mkdir -p "$$PKG_DIR_NAME/Hiddify.AppImage.home"; \
+	mkdir -p "$$PKG_DIR_NAME/Sonar.AppImage.home"; \
 	$(BLUE)Compressing to .tar.gz$(DONE); \
 	tar -czf "$$PKG_DIR_NAME.tar.gz" -C . "$$PKG_DIR_NAME"; \
 	$(BLUE)Removing intermediate directory$(DONE); \

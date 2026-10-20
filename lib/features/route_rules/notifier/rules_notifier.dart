@@ -18,12 +18,26 @@ part 'rules_notifier.g.dart';
 
 const _geoUrl = 'https://raw.githubusercontent.com/hiddify/hiddify-geo/rule-set';
 
+// Sonar: списки заблокированного в России от runetfreedom, те же, что у сервера и Happ
+const _rf = 'https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/sing-box';
+String _site(String name) => '$_rf/rule-set-geosite/geosite-$name.srs';
+String _ip(String name) => '$_rf/rule-set-geoip/geoip-$name.srs';
+
 /// Rules the app ships with, in the order a new list starts with. They are always in the list: the user can
 /// only switch and move them, and their content comes from here, so an update can change it.
 enum BuiltinRule {
   bypassLan(enabledByDefault: true),
   blockAds(enabledByDefault: false),
-  bypassRegion(enabledByDefault: true);
+  bypassRegion(enabledByDefault: true),
+
+  /// Sonar: российские сайты всегда напрямую, в любом режиме
+  sonarRuDirect(enabledByDefault: true),
+
+  /// Sonar: заблокированное и закрытое для России идёт через сервер
+  sonarProxy(enabledByDefault: true),
+
+  /// Sonar: всё остальное напрямую. Включено, это умный режим; выключено, «Всё через Sonar»
+  sonarRestDirect(enabledByDefault: true);
 
   const BuiltinRule({required this.enabledByDefault});
 
@@ -38,6 +52,9 @@ enum BuiltinRule {
     bypassLan => t.pages.settings.routing.builtinRules.bypassLan,
     blockAds => t.pages.settings.routing.builtinRules.blockAds,
     bypassRegion => t.pages.settings.routing.builtinRules.bypassRegion(region: region.presentName(t)),
+    sonarRuDirect => 'Sonar: российские сайты напрямую',
+    sonarProxy => 'Sonar: заблокированное через Sonar',
+    sonarRestDirect => 'Sonar: умный режим, остальное напрямую',
   };
 
   Rule get rule => switch (this) {
@@ -74,7 +91,38 @@ enum BuiltinRule {
       outbound: Outbound.direct,
       ruleSets: ['$_geoUrl/country/geosite-{region}.srs', '$_geoUrl/country/geoip-{region}.srs'],
     ),
+    sonarRuDirect => Rule(
+      outbound: Outbound.direct,
+      ruleSets: [_site('ru-available-only-inside')],
+      domainSuffixes: [
+        'ru', 'su', 'xn--p1ai', 'yandex.net', 'yastatic.net', 'yandex.com', 'yandex.cloud', //
+        'vk.com', 'vk.me', 'userapi.com', 'vkuser.net', 'mycdn.me', 'max.ru',
+      ],
+    ),
+    sonarProxy => Rule(
+      outbound: Outbound.proxy,
+      ruleSets: [
+        _site('ru-blocked'), _ip('ru-blocked'), //
+        _site('youtube'), _site('discord'), _site('meta'), _site('instagram'), _site('x'),
+        _site('telegram'), _ip('telegram'), _site('whatsapp'), _site('tiktok'), _ip('facebook'), _ip('twitter'),
+        _site('openai'), _site('anthropic'), _site('google-gemini'), _site('xai'), _site('perplexity'),
+        _site('category-ai-%21cn'),
+        _site('spotify'), _site('netflix'), _site('roblox'), _site('supercell'), _site('notion'), _site('figma'),
+      ],
+      domainSuffixes: [
+        'aistudio.google.com', 'notebooklm.google.com', 'gemini.google.com', 'grok.com', //
+        'brawlstarsgame.com', 'clashroyaleapp.com', 'clashofclans.com', 'rbxcdn.com',
+      ],
+    ),
+    // У правила должно быть условие: «любой домен или любой адрес»
+    sonarRestDirect => Rule(outbound: Outbound.direct, domainRegexes: ['.*'], ipCidrs: ['0.0.0.0/0', '::/0']),
   }..name = key;
+}
+
+/// Sonar: умный режим включён, если правило «остальное напрямую» включено.
+extension SonarMode on List<Rule> {
+  bool get sonarSmart =>
+      firstWhere((r) => r.name == BuiltinRule.sonarRestDirect.key, orElse: () => Rule()..enabled = true).enabled;
 }
 
 @riverpod
@@ -147,6 +195,12 @@ class RulesNotifier extends _$RulesNotifier with AppLogger {
     current.insert(oldIndex < newIndex ? newIndex - 1 : newIndex, rule);
     state = _updateListOrder(current).toList();
     await _updateFile();
+  }
+
+  /// Sonar: умный режим или «Всё через Sonar».
+  Future<void> setSonarSmart(bool smart) async {
+    final rule = state.where((r) => r.name == BuiltinRule.sonarRestDirect.key).firstOrNull;
+    if (rule != null) await updateEnabled(smart, rule.listOrder);
   }
 
   Future<void> updateEnabled(bool enabled, int listOrder) async {
