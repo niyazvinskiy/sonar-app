@@ -78,3 +78,11 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: bash .github/scripts/android-update-test.sh "$(ls build/app/outputs/flutter-apk/*.apk | grep -m1 -E 'x86_64|app-release')"
+
+      - name: Screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-update-test
+          path: /tmp/sonar-test/
+          if-no-files-found: ignore

@@ -9,7 +9,14 @@ PKG=app.sonar.vpn
 
 log() { echo "== $(date +%H:%M:%S) $*"; }
 version() { adb shell dumpsys package "$PKG" | grep -m1 versionName | tr -d ' \r' | cut -d= -f2; }
-vpn_up() { adb shell ip link show tun0 >/dev/null 2>&1; }
+OUT=/tmp/sonar-test
+mkdir -p "$OUT"
+# туннель VPN: интерфейс tunN или сеть VPN в состоянии CONNECTED
+vpn_up() {
+  adb shell ip -o link 2>/dev/null | grep -q -E ': tun[0-9]+' && return 0
+  adb shell dumpsys connectivity 2>/dev/null | grep -E 'VPN' | grep -q 'CONNECTED'
+}
+shot() { adb exec-out screencap -p > "$OUT/$1.png" 2>/dev/null; log "снимок экрана: $1.png"; }
 
 # Нажать на элемент по тексту: Flutter отдаёт подписи в content-desc
 tap_text() {
@@ -43,8 +50,20 @@ PY
 }
 
 finish() {
+  [ "$1" = 0 ] || shot "fail"
   log "журнал Sonar (logcat)"
   adb logcat -d -s A/SonarUpdate:* A/BoxService:* AndroidRuntime:E PackageInstaller:* 2>/dev/null | tail -60
+  pid=$(adb shell pidof "$PKG" | tr -d '\r')
+  [ -n "$pid" ] && adb logcat -d --pid="$pid" > "$OUT/app.log" 2>/dev/null
+  adb logcat -d > "$OUT/all.log" 2>/dev/null
+  adb shell ip addr > "$OUT/ip.txt" 2>/dev/null
+  adb shell dumpsys connectivity > "$OUT/connectivity.txt" 2>/dev/null
+  if [ "$1" != 0 ]; then
+    log "ошибки приложения"
+    grep -a -E ' E |flutter|Hiddify|hiddify|core|Exception' "$OUT/app.log" 2>/dev/null | tail -60
+    log "сети"
+    grep -a -E 'tun|VPN' "$OUT/ip.txt" "$OUT/connectivity.txt" 2>/dev/null | head -20
+  fi
   exit "$1"
 }
 
@@ -59,7 +78,10 @@ adb shell appops set "$PKG" ACTIVATE_VPN allow
 
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null
 sleep 15
+shot "intro"
 tap_text "Начать" || finish 1
+sleep 20
+shot "after-start"
 
 log "жду, пока поднимется VPN"
 for i in $(seq 1 60); do vpn_up && break; sleep 3; done
