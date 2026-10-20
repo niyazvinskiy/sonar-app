@@ -124,6 +124,20 @@ jobs:
           make ${{ matrix.platform }}-install-deps
           echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
 
+      # Inno Setup 6.7: тёмный мастер со своим фоном. Сборщик ищет его только в стандартной папке
+      - name: Install Inno Setup 6.7
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
+          Invoke-WebRequest $url -OutFile "$env:RUNNER_TEMP\innosetup.exe"
+          $dir = "C:\Program Files (x86)\Inno Setup 6"
+          Start-Process "$env:RUNNER_TEMP\innosetup.exe" -Wait -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/ALLUSERS', "/DIR=`"$dir`""
+          $v = (Get-Item "$dir\ISCC.exe").VersionInfo.ProductVersion
+          "Inno Setup $v"
+          if (-not $v.StartsWith('6.7')) { throw "нужен Inno Setup 6.7, стоит $v" }
+          "INNO_SETUP_PATH=$dir" >> $env:GITHUB_ENV
+
       # Один и тот же ключ подписи из секретов: иначе Android не поставит обновление поверх
       - name: Setup Android Signing Properties
         if: ${{ startsWith(matrix.platform,'android') && env.ANDROID_SIGNING_KEY != '' }}
