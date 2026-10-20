@@ -40,25 +40,27 @@ def background(size, rounded):
     return bg
 
 
-def mark(size, scale=1.0, glyph=False, color=PAPER, dim=1.0):
-    """Сфера, кольца и волна на прозрачном фоне. scale ужимает рисунок к центру."""
+def mark(size, scale=1.0, glyph=False, color=PAPER, dim=1.0, small=False):
+    """Сфера, кольца и волна на прозрачном фоне. scale ужимает рисунок к центру.
+    small: для 16–48 px капля крупнее и кольцо одно, иначе на панели задач её не видно."""
     S = size
     img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     c = S / 2
-    r = S * 0.13 * scale                      # радиус сферы
-    cx, cy = c + S * 0.06 * scale, c - S * 0.07 * scale
+    r = S * (0.2 if small else 0.13) * scale  # радиус сферы
+    cx, cy = (c, c - S * 0.05 * scale) if small else (c + S * 0.06 * scale, c - S * 0.07 * scale)
 
     # кольца-импульсы
-    for k, (rr, a) in enumerate([(2.05, 150), (3.1, 70)]):
-        w = max(1, round(S * (0.018 if glyph else 0.012) * scale))
+    rings = [(1.72, 200)] if small else [(2.05, 150), (3.1, 70)]
+    for k, (rr, a) in enumerate(rings):
+        w = max(1, round(S * (0.035 if small else 0.018 if glyph else 0.012) * scale))
         alpha = round(a * dim) if not glyph else (255 if k == 0 else 160)
         d.ellipse((cx - r * rr, cy - r * rr, cx + r * rr, cy + r * rr), outline=color + (alpha,), width=w)
 
     # волна под сферой
     pts = []
     x0, x1 = c - S * 0.36 * scale, c + S * 0.36 * scale
-    base = c + S * 0.17 * scale
+    base = c + S * (0.3 if small else 0.17) * scale
     for i in range(121):
         t = i / 120
         x = x0 + (x1 - x0) * t
@@ -66,7 +68,7 @@ def mark(size, scale=1.0, glyph=False, color=PAPER, dim=1.0):
         pts.append((x, y))
     wave_color = color if glyph else FEATHER
     d.line(pts, fill=wave_color + (round(255 * (0.95 if glyph else 0.85 * dim)),),
-           width=max(1, round(S * (0.03 if glyph else 0.022) * scale)), joint="curve")
+           width=max(1, round(S * (0.045 if small else 0.03 if glyph else 0.022) * scale)), joint="curve")
 
     # сфера
     if glyph:
@@ -84,10 +86,11 @@ def mark(size, scale=1.0, glyph=False, color=PAPER, dim=1.0):
     return img
 
 
-def render(size, *, rounded=True, bg=True, scale=1.0, glyph=False, color=PAPER, dim=1.0):
+def render(size, *, rounded=True, bg=True, scale=1.0, glyph=False, color=PAPER, dim=1.0, small=None):
     big = size * 4
+    small = size <= 48 if small is None else small
     base = background(big, rounded) if bg else Image.new("RGBA", (big, big), (0, 0, 0, 0))
-    out = Image.alpha_composite(base, mark(big, scale, glyph, color, dim))
+    out = Image.alpha_composite(base, mark(big, scale, glyph, color, dim, small))
     return out.resize((size, size), Image.LANCZOS)
 
 
@@ -111,22 +114,24 @@ def main():
         save(render(round(48 * k)), f"{res}/ic_launcher.webp", quality=95)
         save(render(round(48 * k), rounded=False).resize((round(48 * k),) * 2), f"{res}/ic_launcher_round.webp", quality=95)
         # адаптивный передний план: 108 dp, рисунок в безопасной зоне 66 dp
-        save(render(round(108 * k), rounded=False, bg=False, scale=0.62), f"{res}/ic_launcher_foreground.png")
+        save(render(round(108 * k), rounded=False, bg=False, scale=0.62, small=False), f"{res}/ic_launcher_foreground.png")
         # значок в шторке уведомлений: белый силуэт
-        save(render(round(24 * k), rounded=False, bg=False, scale=1.25, glyph=True),
+        save(render(round(24 * k), rounded=False, bg=False, scale=1.25, glyph=True, small=False),
              f"android/app/src/main/res/drawable-{name}/ic_stat_logo.png")
 
     print("Windows")
-    ico = render(256)
-    save(ico, "windows/runner/resources/app_icon.ico", sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])
-    save(ico, "assets/images/source/sonar.ico", sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])
+    # каждый размер рисуется отдельно: маленьким нужна крупная капля
+    sizes = (16, 24, 32, 48, 64, 128, 256)
+    frames = [render(n) for n in sizes]
+    for rel in ("windows/runner/resources/app_icon.ico", "assets/images/source/sonar.ico"):
+        save(frames[-1], rel, sizes=[(n, n) for n in sizes], append_images=frames[:-1])
 
     print("Трей: обычный, подключён, отключён, для светлой панели")
     tray = {
-        "tray_icon": render(64, bg=False, rounded=False, scale=1.3, glyph=True),
-        "tray_icon_connected": render(64, bg=False, rounded=False, scale=1.3),
-        "tray_icon_disconnected": render(64, bg=False, rounded=False, scale=1.3, glyph=True, color=FEATHER),
-        "tray_icon_dark": render(64, bg=False, rounded=False, scale=1.3, glyph=True, color=DEEP),
+        "tray_icon": render(64, bg=False, rounded=False, scale=1.3, glyph=True, small=False),
+        "tray_icon_connected": render(64, bg=False, rounded=False, scale=1.3, small=False),
+        "tray_icon_disconnected": render(64, bg=False, rounded=False, scale=1.3, glyph=True, color=FEATHER, small=False),
+        "tray_icon_dark": render(64, bg=False, rounded=False, scale=1.3, glyph=True, color=DEEP, small=False),
     }
     for name, img in tray.items():
         save(img, f"assets/images/{name}.png")
