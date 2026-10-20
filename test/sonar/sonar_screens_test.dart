@@ -167,6 +167,8 @@ void main() {
       connectedSince: DateTime.now().subtract(const Duration(minutes: 12, seconds: 34)),
       down: 2516582,
       up: 131072,
+      downTotal: 1288490188,
+      upTotal: 88080384,
     ),
     'failed': const SonarHomeData(
       sphere: SphereState.failed,
@@ -183,6 +185,8 @@ void main() {
       connectedSince: DateTime.now().subtract(const Duration(hours: 1, minutes: 5)),
       down: 734003,
       up: 51200,
+      downTotal: 3355443,
+      upTotal: 412000,
     ),
   };
 
@@ -198,6 +202,15 @@ void main() {
       'phone-connected',
       _frame(SonarHomeView(data: states['connected']!, onChannel: () {})),
       size: const Size(390, 844),
+    );
+  });
+
+  testWidgets('экран: самое маленькое окно, в сети', skip: !_enabled, (tester) async {
+    await shot(
+      tester,
+      'small-connected',
+      _frame(SonarHomeView(data: states['connected']!, onChannel: () {})),
+      size: const Size(380, 620),
     );
   });
 

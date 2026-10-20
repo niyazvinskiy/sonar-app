@@ -116,6 +116,8 @@ class SonarHome extends HookConsumerWidget {
         connectedSince: since.value,
         down: stats?.downlink.toInt() ?? 0,
         up: stats?.uplink.toInt() ?? 0,
+        downTotal: stats?.downlinkTotal.toInt() ?? 0,
+        upTotal: stats?.uplinkTotal.toInt() ?? 0,
         // во время подключения капля не реагирует, а в сети отключает
         tappable: sphere != SphereState.connecting || connected,
         canRetryKey: keyStatus is SonarKeyFailed,

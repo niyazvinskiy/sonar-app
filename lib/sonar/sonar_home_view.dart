@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -21,6 +22,8 @@ class SonarHomeData {
     this.connectedSince,
     this.down = 0,
     this.up = 0,
+    this.downTotal = 0,
+    this.upTotal = 0,
     this.tappable = true,
     this.canRetryKey = false,
     this.channelEnabled = true,
@@ -35,6 +38,10 @@ class SonarHomeData {
   final DateTime? connectedSince;
   final int down;
   final int up;
+
+  /// Сколько прошло за это подключение
+  final int downTotal;
+  final int upTotal;
   final bool tappable;
   final bool canRetryKey;
   final bool channelEnabled;
@@ -64,83 +71,102 @@ class SonarHomeView extends StatelessWidget {
   Widget build(BuildContext context) {
     final mood = SonarMood.of(data.sphere);
     final media = MediaQuery.sizeOf(context);
-    final sphereSize = (media.shortestSide * .82).clamp(230.0, 340.0);
     return SonarAurora(
       mood: mood,
       child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  banner ?? const SizedBox(height: 12),
-                  const Spacer(flex: 2),
-                  SonarSphere(
-                    state: data.sphere,
-                    mood: mood,
-                    onTap: data.tappable ? onTap : null,
-                    size: sphereSize,
-                    semanticLabel: data.connected ? 'Отключить Sonar' : 'Подключить Sonar',
-                  ),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 450),
-                    transitionBuilder: (child, a) => FadeTransition(
-                      opacity: a,
-                      child: SlideTransition(
-                        position: Tween(begin: const Offset(0, .25), end: Offset.zero).animate(a),
-                        child: child,
-                      ),
-                    ),
-                    child: Text(
-                      data.title,
-                      key: ValueKey(data.title),
-                      textAlign: TextAlign.center,
-                      style: SonarText.title,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 42),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 350),
-                      child: Text(
-                        data.subtitle,
-                        key: ValueKey(data.subtitle),
-                        textAlign: TextAlign.center,
-                        style: SonarText.body,
-                      ),
-                    ),
-                  ),
-                  if (data.canRetryKey)
-                    TextButton(
-                      onPressed: onRetryKey,
-                      child: const Text('Попробовать ещё раз', style: TextStyle(fontFamily: 'Jost', fontSize: 15)),
-                    ),
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 500),
-                    curve: const Cubic(.16, 1, .3, 1),
-                    child: data.connected
-                        ? Padding(
-                            padding: const EdgeInsets.only(top: 14),
-                            child: _Stats(data: data),
-                          )
-                        : const SizedBox(width: double.infinity),
-                  ),
-                  const Spacer(flex: 3),
-                  SonarModeSwitch(smart: data.smart, onChanged: onMode),
-                  const SizedBox(height: 10),
-                  _ChannelRow(data: data, onTap: data.channelEnabled ? onChannel : null),
-                  const SizedBox(height: 18),
-                ],
-              ),
-            ),
-          ),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            // В низком окне капля уступает место тексту и кнопкам: всё, кроме неё,
+            // занимает около 240 точек, а в сети с цифрами и строкой сервера ещё 125
+            final rest = data.connected ? 370.0 : 245.0;
+            final sphereSize = math.min(
+              (media.shortestSide * .82).clamp(230.0, 340.0),
+              math.max(140.0, box.maxHeight - rest),
+            );
+            // при подключении появляются цифры, и капля плавно, а не скачком, становится меньше
+            return TweenAnimationBuilder<double>(
+              tween: Tween(end: sphereSize),
+              duration: const Duration(milliseconds: 500),
+              curve: const Cubic(.16, 1, .3, 1),
+              builder: (_, size, _) => _layout(size, mood),
+            );
+          },
         ),
       ),
     );
   }
+
+  Widget _layout(double sphereSize, SonarMood mood) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 480),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          children: [
+            banner ?? const SizedBox(height: 12),
+            const Spacer(flex: 2),
+            SonarSphere(
+              state: data.sphere,
+              mood: mood,
+              onTap: data.tappable ? onTap : null,
+              size: sphereSize,
+              semanticLabel: data.connected ? 'Отключить Sonar' : 'Подключить Sonar',
+            ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 450),
+              transitionBuilder: (child, a) => FadeTransition(
+                opacity: a,
+                child: SlideTransition(
+                  position: Tween(begin: const Offset(0, .25), end: Offset.zero).animate(a),
+                  child: child,
+                ),
+              ),
+              child: Text(data.title, key: ValueKey(data.title), textAlign: TextAlign.center, style: SonarText.title),
+            ),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 42),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 350),
+                child: Text(
+                  data.subtitle,
+                  key: ValueKey(data.subtitle),
+                  textAlign: TextAlign.center,
+                  style: SonarText.body,
+                ),
+              ),
+            ),
+            if (data.canRetryKey)
+              TextButton(
+                onPressed: onRetryKey,
+                child: const Text('Попробовать ещё раз', style: TextStyle(fontFamily: 'Jost', fontSize: 15)),
+              ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 500),
+              curve: const Cubic(.16, 1, .3, 1),
+              child: data.connected
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      child: Column(
+                        children: [
+                          _Stats(data: data),
+                          const SizedBox(height: 10),
+                          _Route(data: data),
+                        ],
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
+            ),
+            const Spacer(flex: 3),
+            SonarModeSwitch(smart: data.smart, onChanged: onMode),
+            const SizedBox(height: 10),
+            _ChannelRow(data: data, onTap: data.channelEnabled ? onChannel : null),
+            const SizedBox(height: 18),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _Stats extends StatelessWidget {
@@ -194,6 +220,48 @@ class _Stats extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [speed(Icons.south_rounded, data.down), speed(Icons.north_rounded, data.up, small: true)],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Строка под цифрами: где сервер и сколько уже прошло за подключение.
+class _Route extends StatelessWidget {
+  const _Route({required this.data});
+
+  final SonarHomeData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = SonarText.hint.copyWith(fontSize: 12.5, fontFeatures: const [FontFeature.tabularFigures()]);
+    final dim = const Color(Sonar.feather).withValues(alpha: .75);
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      runSpacing: 2,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.place_outlined, size: 14, color: dim),
+            const SizedBox(width: 4),
+            Text('Сервер: ${Sonar.serverCity}', style: style),
+          ],
+        ),
+        Text('·', style: style.copyWith(color: dim)),
+        // стрелок в Jost нет, поэтому значки
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('за сеанс ', style: style),
+            Icon(Icons.south_rounded, size: 12, color: dim),
+            Text(sonarBytes(data.downTotal), style: style),
+            const SizedBox(width: 6),
+            Icon(Icons.north_rounded, size: 12, color: dim),
+            Text(sonarBytes(data.upTotal), style: style),
+          ],
         ),
       ],
     );

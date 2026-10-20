@@ -13,6 +13,9 @@ abstract class Sonar {
   static const site = 'https://sonar-vpn.vercel.app';
   static const profileName = 'Sonar';
 
+  /// Где стоит сервер: показывается на главном экране в сети
+  static const serverCity = 'Хельсинки';
+
   /// Цвета сайта и прототипа: ночная вода, туман, бумага.
   static const night0 = 0xFF070B16;
   static const night1 = 0xFF0E1630;

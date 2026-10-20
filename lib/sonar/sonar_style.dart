@@ -110,6 +110,20 @@ String sonarSpeed(int bytesPerSecond) {
   return '${mb.toStringAsFixed(mb < 10 ? 1 : 0).replaceAll('.', ',')} МБ/с';
 }
 
+/// Объём по-русски: «840 КБ», «1,2 ГБ».
+String sonarBytes(int bytes) {
+  if (bytes < 1024) return '$bytes Б';
+  const units = ['КБ', 'МБ', 'ГБ', 'ТБ'];
+  var v = bytes / 1024;
+  var i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  final digits = v < 10 && i > 0 ? 1 : 0;
+  return '${v.toStringAsFixed(digits).replaceAll('.', ',')} ${units[i]}';
+}
+
 /// Промежуток по-русски: «10 мин», «2 ч».
 String sonarDuration(Duration d) {
   if (d.inMinutes < 1) return '${d.inSeconds} с';
