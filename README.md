@@ -7,7 +7,7 @@
 **Всё открыто. Пинг на месте.**
 
 Приложение частного VPN Sonar для Windows, Android, Linux и macOS.
-Сайт: [sonar-vpn.vercel.app](https://sonar-vpn.vercel.app)
+Сайт: [sonar-vpn.vercel.app](https://sonar-vpn.vercel.app) · зеркало: [niyazvinskiy.github.io/sonar-app](https://niyazvinskiy.github.io/sonar-app/)
 
 [Скачать последнюю версию](https://github.com/niyazvinskiy/sonar-app/releases/latest)
 
