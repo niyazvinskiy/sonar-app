@@ -80,6 +80,7 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
       final release = (r.data as Map).cast<String, dynamic>();
       final tag = (release['tag_name'] as String? ?? '').replaceFirst(RegExp('^(sonar-)?v'), '');
       final latest = Version.parse(tag.split('+').first);
+      await _cleanup(keep: latest > current ? tag : null);
       if (latest <= current) return;
 
       final page = release['html_url'] as String? ?? 'https://github.com/${Sonar.repo}/releases/latest';
@@ -124,6 +125,20 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
     } finally {
       dio.close();
     }
+  }
+
+  /// Убирает скачанные раньше установщики: после обновления они только занимают место.
+  static Future<void> _cleanup({String? keep}) async {
+    try {
+      final dir = Directory('${(await getTemporaryDirectory()).path}${Platform.pathSeparator}sonar-update');
+      if (!dir.existsSync()) return;
+      for (final f in dir.listSync().whereType<File>()) {
+        final name = f.uri.pathSegments.last;
+        if (keep != null && name.startsWith('$keep-')) continue;
+        if (name.endsWith('.cmd')) continue;
+        await f.delete();
+      }
+    } catch (_) {}
   }
 
   /// Без вопросов ставим только на Windows и Linux, и только один раз за запуск.
