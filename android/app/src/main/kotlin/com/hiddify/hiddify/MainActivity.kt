@@ -17,6 +17,8 @@ import com.hiddify.hiddify.bg.ServiceNotification
 import com.hiddify.hiddify.constant.Alert
 import com.hiddify.hiddify.constant.ServiceMode
 import com.hiddify.hiddify.constant.Status
+import com.hiddify.hiddify.sonar.SonarUpdate
+import com.hiddify.hiddify.sonar.SonarUpdatePlugin
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +51,7 @@ class MainActivity : FlutterFragmentActivity(), ServiceConnection.Callback {
         flutterEngine.plugins.add(PlatformSettingsHandler())
         flutterEngine.plugins.add(EventHandler())
         flutterEngine.plugins.add(LogHandler())
+        flutterEngine.plugins.add(SonarUpdatePlugin())
 //        flutterEngine.plugins.add(GroupsChannel(lifecycleScope))
 //        flutterEngine.plugins.add(ActiveGroupsChannel(lifecycleScope))
 //        flutterEngine.plugins.add(StatsChannel(lifecycleScope))
@@ -56,6 +59,16 @@ class MainActivity : FlutterFragmentActivity(), ServiceConnection.Callback {
 
     fun reconnect() {
         connection.reconnect()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        SonarUpdate.foreground = true
+    }
+
+    override fun onPause() {
+        SonarUpdate.foreground = false
+        super.onPause()
     }
 
     @SuppressLint("NewApi")

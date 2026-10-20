@@ -11,6 +11,9 @@ abstract class Sonar {
   static const api = String.fromEnvironment('SONAR_API');
   static const repo = 'niyazvinskiy/sonar-app';
   static const site = 'https://sonar-vpn.vercel.app';
+
+  /// Тот же сайт на GitHub Pages: открывается и там, где vercel.app закрыт
+  static const mirror = 'https://niyazvinskiy.github.io/sonar-app/';
   static const profileName = 'Sonar';
 
   /// Где стоит сервер: показывается на главном экране в сети

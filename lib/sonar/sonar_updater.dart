@@ -3,11 +3,11 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/sonar/sonar.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -34,8 +34,9 @@ class SonarUpdateState {
 }
 
 /// Обновления Sonar сами: новая версия ищется в релизах GitHub при запуске и раз в
-/// 6 часов, скачивается в фоне и ставится. На Windows и Linux без вопросов, на
-/// Android система попросит одно касание «Установить», на macOS откроется образ.
+/// 6 часов, скачивается в фоне и ставится. На Windows и Linux без вопросов. На
+/// Android то же самое делает служба VPN (SonarUpdate.kt), когда экран погашен, а
+/// здесь остаётся кнопка «Обновить». На macOS откроется образ.
 class SonarUpdater extends Notifier<SonarUpdateState> {
   Timer? _timer;
   bool _autoInstallTried = false;
@@ -159,9 +160,12 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
     final version = state.version;
     state = SonarUpdateState(SonarUpdatePhase.installing, version: version, file: file, page: state.page);
     try {
-      // Сначала аккуратно выключаем туннель, чтобы установщик мог заменить файлы ядра
+      // Сначала аккуратно выключаем туннель, чтобы установщик мог заменить файлы ядра.
+      // На Android не надо: система сама перезапустит приложение, а VPN включит BootReceiver
       final connection = ref.read(connectionNotifierProvider.notifier);
-      if (ref.read(connectionNotifierProvider).valueOrNull is Connected) await connection.toggleConnection();
+      if (!Platform.isAndroid && ref.read(connectionNotifierProvider).valueOrNull is Connected) {
+        await connection.toggleConnection();
+      }
 
       if (Platform.isWindows) {
         final exe = Platform.resolvedExecutable;
@@ -189,8 +193,11 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
         await Process.start(target, const [], mode: ProcessStartMode.detached);
         exit(0);
       } else if (Platform.isAndroid) {
-        final result = await OpenFilex.open(file.path, type: 'application/vnd.android.package-archive');
-        if (result.type != ResultType.done) throw Exception(result.message);
+        // Системный установщик: на Android 12+ без вопросов, иначе система спросит сама
+        await const MethodChannel('app.sonar/update').invokeMethod<bool>('install', {
+          'path': file.path,
+          'version': version,
+        });
         state = SonarUpdateState(SonarUpdatePhase.ready, version: version, file: file, page: state.page);
       } else if (Platform.isMacOS) {
         await Process.run('open', [file.path]);

@@ -96,6 +96,14 @@ class AboutPage extends HookConsumerWidget {
                     onTap: () => UriUtils.tryLaunch(Uri.parse(Sonar.site)),
                   ),
                   SonarSettingsTile(
+                    icon: Icons.content_copy_rounded,
+                    tint: const Color(0xFF5EEAD4),
+                    title: 'Зеркало сайта',
+                    subtitle: 'Если основной сайт не открывается',
+                    trailing: open,
+                    onTap: () => UriUtils.tryLaunch(Uri.parse(Sonar.mirror)),
+                  ),
+                  SonarSettingsTile(
                     icon: Icons.shield_outlined,
                     title: 'Как устроена защита',
                     subtitle: 'Что видит сервер и чего не видит',

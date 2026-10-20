@@ -39,6 +39,7 @@ import com.hiddify.core.libbox.SystemProxyStatus
 import com.hiddify.hiddify.BuildConfig
 import com.hiddify.hiddify.MainActivity
 import com.hiddify.hiddify.constant.Bugs
+import com.hiddify.hiddify.sonar.SonarUpdate
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -206,6 +207,8 @@ class BoxService(
                 notification.show(activeProfileName, R.string.status_started)
             }
             notification.start()
+            // Sonar: пока VPN работает, обновления приходят сами
+            SonarUpdate.startLoop(service)
         } catch (e: Exception) {
             stopAndAlert(Alert.StartService, e.message)
             return
@@ -270,6 +273,7 @@ class BoxService(
     private fun stopService() {
         if (status.value == Status.Stopped) return
         status.value = Status.Stopping
+        SonarUpdate.stopLoop()
         if (receiverRegistered) {
             service.unregisterReceiver(receiver)
             receiverRegistered = false

@@ -227,7 +227,8 @@ class SettingsPage extends HookConsumerWidget {
                           size: 18,
                           color: const Color(Sonar.feather).withValues(alpha: .6),
                         ),
-                        onTap: () => launchUrl(Uri.parse(Sonar.site), mode: LaunchMode.externalApplication),
+                        // зеркало открывается у всех провайдеров, vercel.app не везде
+                        onTap: () => launchUrl(Uri.parse(Sonar.mirror), mode: LaunchMode.externalApplication),
                       ),
                       SonarSettingsTile(
                         icon: Icons.info_outline_rounded,
