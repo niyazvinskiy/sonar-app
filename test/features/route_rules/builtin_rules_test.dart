@@ -78,10 +78,13 @@ void main() {
   /// Each rule as its name and switch, such as "builtin:bypassLan on".
   List<String> describe(List<Rule> rules) => [for (final rule in rules) '${rule.name} ${rule.enabled ? 'on' : 'off'}'];
 
+  /// Правила Sonar проверяются отдельно, ниже: здесь список без них, как в Hiddify.
+  bool isSonar(Rule rule) => rule.name.startsWith('builtin:sonar');
+
   List<String> current(ProviderContainer container) {
     final rules = container.read(rulesNotifierProvider);
     expect([for (final rule in rules) rule.listOrder], List.generate(rules.length, (index) => index));
-    return describe(rules);
+    return describe(rules.where((rule) => !isSonar(rule)).toList());
   }
 
   void expectSaved(ProviderContainer container) =>
@@ -277,7 +280,8 @@ void main() {
 
   test('the core gets each built-in rule in the shape it reads', () async {
     final container = await open();
-    final json = RouteRule(rules: container.read(rulesNotifierProvider)).toProto3Json()! as Map<String, dynamic>;
+    final hiddify = container.read(rulesNotifierProvider).where((rule) => !isSonar(rule));
+    final json = RouteRule(rules: hiddify).toProto3Json()! as Map<String, dynamic>;
     const geo = 'https://raw.githubusercontent.com/hiddify/hiddify-geo/rule-set';
     expect(json, {
       'rules': [
@@ -326,8 +330,51 @@ void main() {
     });
   });
 
+  group('Sonar', () {
+    test('a new list has the smart mode rules on, after the Hiddify ones', () async {
+      final container = await open(region: Region.ru);
+      final rules = container.read(rulesNotifierProvider);
+      expect(describe(rules.where(isSonar).toList()), [
+        'builtin:sonarRuDirect on',
+        'builtin:sonarProxy on',
+        'builtin:sonarRestDirect on',
+      ]);
+      expect(rules.sonarSmart, isTrue);
+    });
+
+    test('everything through Sonar turns off only the rest-direct rule, and back', () async {
+      final container = await open(region: Region.ru);
+      await container.read(rulesNotifierProvider.notifier).setSonarSmart(false);
+      var rules = container.read(rulesNotifierProvider);
+      expect(rules.sonarSmart, isFalse);
+      expect(describe(rules.where(isSonar).toList()), [
+        'builtin:sonarRuDirect on',
+        'builtin:sonarProxy on',
+        'builtin:sonarRestDirect off',
+      ]);
+      expectSaved(container);
+
+      await container.read(rulesNotifierProvider.notifier).setSonarSmart(true);
+      rules = container.read(rulesNotifierProvider);
+      expect(rules.sonarSmart, isTrue);
+    });
+
+    test('the smart mode rules route blocked lists through Sonar and the rest directly', () {
+      expect(BuiltinRule.sonarProxy.rule.outbound, Outbound.proxy);
+      expect(BuiltinRule.sonarProxy.rule.ruleSets, contains(endsWith('geosite-ru-blocked.srs')));
+      expect(BuiltinRule.sonarRuDirect.rule.outbound, Outbound.direct);
+      expect(BuiltinRule.sonarRuDirect.rule.domainSuffixes, contains('ru'));
+      expect(BuiltinRule.sonarRestDirect.rule.outbound, Outbound.direct);
+      expect(BuiltinRule.sonarRestDirect.rule.domainRegexes, ['.*']);
+    });
+  });
+
   group('the routing page', () {
     Future<ProviderContainer> show(WidgetTester tester) async {
+      // Шесть встроенных правил: окно повыше, чтобы все строки были построены
+      tester.view.physicalSize = const Size(1000, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       final container = (await tester.runAsync(open))!;
       await tester.pumpWidget(
         UncontrolledProviderScope(
@@ -341,8 +388,8 @@ void main() {
 
     testWidgets('marks each built-in rule and names the region rule after the region', (tester) async {
       await show(tester);
-      expect(find.text('Built-in'), findsNWidgets(3));
-      expect(find.byIcon(Icons.lock_outline_rounded), findsNWidgets(3));
+      expect(find.text('Built-in'), findsNWidgets(6));
+      expect(find.byIcon(Icons.lock_outline_rounded), findsNWidgets(6));
       expect(find.text('Bypass LAN'), findsOneWidget);
       expect(find.text('Block ads and malware'), findsOneWidget);
       expect(find.text('Bypass sites in Iran'), findsOneWidget);
@@ -363,7 +410,8 @@ void main() {
       final row = find.ancestor(of: find.text('Bypass sites in Iran'), matching: find.byType(ListTile));
       await tester.tap(find.descendant(of: row, matching: find.byType(Switch)));
       await tester.pumpAndSettle();
-      expect(container.read(rulesNotifierProvider).last.enabled, isFalse);
+      final region = container.read(rulesNotifierProvider).firstWhere((r) => r.name == BuiltinRule.bypassRegion.key);
+      expect(region.enabled, isFalse);
     });
 
     testWidgets('follows the region chip: Other hides the region rule, another region brings it back', (tester) async {
@@ -374,14 +422,14 @@ void main() {
       await tester.tap(find.text('Other').last);
       await tester.pumpAndSettle();
       expect(find.textContaining('Bypass sites in'), findsNothing);
-      expect(find.text('Built-in'), findsNWidgets(2));
+      expect(find.text('Built-in'), findsNWidgets(5));
 
       await tester.tap(find.text('Region'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('China').last);
       await tester.pumpAndSettle();
       expect(find.text('Bypass sites in China'), findsOneWidget);
-      expect(find.text('Built-in'), findsNWidgets(3));
+      expect(find.text('Built-in'), findsNWidgets(6));
     });
   });
 }

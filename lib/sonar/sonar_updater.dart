@@ -16,7 +16,14 @@ import 'package:version/version.dart';
 enum SonarUpdatePhase { idle, downloading, ready, installing, failed }
 
 class SonarUpdateState {
-  const SonarUpdateState(this.phase, {this.version = '', this.progress = 0, this.file, this.page = '', this.error = ''});
+  const SonarUpdateState(
+    this.phase, {
+    this.version = '',
+    this.progress = 0,
+    this.file,
+    this.page = '',
+    this.error = '',
+  });
 
   final SonarUpdatePhase phase;
   final String version;
@@ -79,7 +86,12 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
       final assets = (release['assets'] as List? ?? const []).cast<Map<dynamic, dynamic>>();
       final asset = assets.where((a) => a['name'] == _assetName).firstOrNull;
       if (asset == null) {
-        state = SonarUpdateState(SonarUpdatePhase.failed, version: tag, page: page, error: 'нет файла для этой системы');
+        state = SonarUpdateState(
+          SonarUpdatePhase.failed,
+          version: tag,
+          page: page,
+          error: 'нет файла для этой системы',
+        );
         return;
       }
 
@@ -95,7 +107,9 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
           part.path,
           options: Options(receiveTimeout: const Duration(minutes: 10)),
           onReceiveProgress: (got, total) {
-            if (total > 0) state = SonarUpdateState(SonarUpdatePhase.downloading, version: tag, page: page, progress: got / total);
+            if (total > 0) {
+              state = SonarUpdateState(SonarUpdatePhase.downloading, version: tag, page: page, progress: got / total);
+            }
           },
         );
         if (size > 0 && await part.length() != size) throw Exception('файл скачался не целиком');
@@ -137,13 +151,15 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
       if (Platform.isWindows) {
         final exe = Platform.resolvedExecutable;
         final script = File('${file.parent.path}\\sonar-update.cmd');
-        await script.writeAsString([
-          '@echo off',
-          'ping -n 3 127.0.0.1 >nul',
-          '"${file.path}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS',
-          'start "" "$exe"',
-          'del "%~f0"',
-        ].join('\r\n'));
+        await script.writeAsString(
+          [
+            '@echo off',
+            'ping -n 3 127.0.0.1 >nul',
+            '"${file.path}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS',
+            'start "" "$exe"',
+            'del "%~f0"',
+          ].join('\r\n'),
+        );
         await Process.start('cmd.exe', ['/c', script.path], mode: ProcessStartMode.detached);
         exit(0);
       } else if (Platform.isLinux) {
@@ -201,7 +217,9 @@ class SonarUpdateBanner extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          Expanded(child: Text(text, style: const TextStyle(color: Color(Sonar.mist), fontSize: 14))),
+          Expanded(
+            child: Text(text, style: const TextStyle(color: Color(Sonar.mist), fontSize: 14)),
+          ),
           if (action != null)
             TextButton(
               onPressed: u.phase == SonarUpdatePhase.failed

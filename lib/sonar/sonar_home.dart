@@ -13,6 +13,17 @@ import 'package:hiddify/sonar/sonar_updater.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 const _paper = Color(Sonar.paper);
+
+/// «Sonar · Основной» → «Основной»; автовыбор Hiddify показывается как «Лучший канал».
+String sonarChannelLabel(String tag) {
+  final t = tag.trim();
+  final lower = t.toLowerCase();
+  if (t.isEmpty || lower.contains('auto') || lower.contains('lowest') || lower.contains('select')) {
+    return 'Лучший канал';
+  }
+  return t.replaceFirst(RegExp(r'^Sonar\s*·\s*'), '');
+}
+
 const _mist = Color(Sonar.mist);
 const _feather = Color(Sonar.feather);
 
@@ -47,15 +58,16 @@ class SonarHome extends HookConsumerWidget {
       SphereState.connected => 'Подключено',
       SphereState.connecting => status.valueOrNull is Disconnecting ? 'Отключаю…' : 'Подключаю…',
       SphereState.failed => 'Не удалось подключиться',
-      SphereState.idle => hasProfile ? 'Коснитесь сферы' : 'Коснитесь сферы, чтобы начать',
+      SphereState.idle => hasProfile ? 'Коснитесь капли' : 'Коснитесь капли, чтобы начать',
     };
     final subtitle = switch (sphere) {
       _ when keyStatus is SonarKeyFailed => keyStatus.message,
       SphereState.connected when ConnectionConst.isValidDelay(delay) =>
-        '$delay мс · ${_channel(proxy?.groupSelectedTagDisplay ?? proxy?.tagDisplay ?? '')}',
+        '$delay мс · ${sonarChannelLabel(proxy?.groupSelectedTagDisplay ?? proxy?.tagDisplay ?? '')}',
       SphereState.connected => 'Сервер не отвечает на проверку, пробую другой канал',
       SphereState.failed => _failure(status),
-      SphereState.idle => smart ? 'Умный режим: через Sonar только заблокированное' : 'Через Sonar всё, кроме российских сайтов',
+      SphereState.idle =>
+        smart ? 'Умный режим: через Sonar только заблокированное' : 'Через Sonar всё, кроме российских сайтов',
       _ => '',
     };
 
@@ -113,10 +125,13 @@ class SonarHome extends HookConsumerWidget {
                   if (keyStatus is SonarKeyFailed)
                     TextButton(onPressed: onTap, child: const Text('Попробовать ещё раз')),
                   const Spacer(),
-                  _ModeSwitch(smart: smart, onChanged: (v) => ref.read(rulesNotifierProvider.notifier).setSonarSmart(v)),
+                  _ModeSwitch(
+                    smart: smart,
+                    onChanged: (v) => ref.read(rulesNotifierProvider.notifier).setSonarSmart(v),
+                  ),
                   const SizedBox(height: 12),
                   _ChannelButton(
-                    label: _channel(proxy?.groupSelectedTagDisplay ?? ''),
+                    label: sonarChannelLabel(proxy?.groupSelectedTagDisplay ?? ''),
                     enabled: hasProfile,
                     onTap: () => context.goNamed('proxies'),
                   ),
@@ -130,13 +145,6 @@ class SonarHome extends HookConsumerWidget {
     );
   }
 
-  /// «Sonar · Основной» → «Основной»; авто-выбор Hiddify показывает как «Лучший канал».
-  static String _channel(String tag) {
-    final t = tag.trim();
-    if (t.isEmpty || t.toLowerCase().contains('auto') || t.toLowerCase().contains('lowest')) return 'Лучший канал';
-    return t.replaceFirst(RegExp(r'^Sonar\s*·\s*'), '');
-  }
-
   static String _failure(AsyncValue<ConnectionStatus> status) {
     final failure = switch (status) {
       AsyncValue(valueOrNull: Disconnected(connectionFailure: final f?)) => f.toString(),
@@ -146,7 +154,7 @@ class SonarHome extends HookConsumerWidget {
     if (failure.contains('missingPrivilege') || failure.contains('Access is denied')) {
       return 'Для режима VPN Windows нужны права администратора. Запустите Sonar от имени администратора или выберите системный прокси в настройках.';
     }
-    return 'Коснитесь сферы ещё раз. Если не помогает, выберите канал «Запасной 443».';
+    return 'Коснитесь капли ещё раз. Если не помогает, выберите канал «Запасной 443».';
   }
 }
 
@@ -178,9 +186,16 @@ class _ModeSwitch extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  Text(label, style: TextStyle(fontSize: 15, color: on ? _paper : _mist, fontWeight: FontWeight.w500)),
+                  Text(
+                    label,
+                    style: TextStyle(fontSize: 15, color: on ? _paper : _mist, fontWeight: FontWeight.w500),
+                  ),
                   const SizedBox(height: 2),
-                  Text(hint, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: _feather)),
+                  Text(
+                    hint,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12, color: _feather),
+                  ),
                 ],
               ),
             ),

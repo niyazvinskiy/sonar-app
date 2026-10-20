@@ -46,10 +46,7 @@ class SonarSphere extends HookWidget {
             duration: const Duration(milliseconds: 500),
             curve: const Cubic(.16, 1, .3, 1),
             child: RepaintBoundary(
-              child: CustomPaint(
-                size: Size.square(size),
-                painter: _SpherePainter(clock, state),
-              ),
+              child: CustomPaint(size: Size.square(size), painter: _SpherePainter(clock, state)),
             ),
           ),
         ),
