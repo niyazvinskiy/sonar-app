@@ -1,14 +1,19 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
+import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/features/settings/notifier/config_option/config_option_notifier.dart';
 import 'package:hiddify/features/settings/notifier/reset_tunnel/reset_tunnel_notifier.dart';
+import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hiddify/sonar/sonar.dart';
 import 'package:hiddify/sonar/sonar_aurora.dart';
 import 'package:hiddify/sonar/sonar_settings.dart';
 import 'package:hiddify/sonar/sonar_style.dart';
+import 'package:hiddify/sonar/sonar_windows.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -164,6 +169,19 @@ class SettingsPage extends HookConsumerWidget {
                   const SonarSettingsLabel('Основное'),
                   SonarSettingsGroup(
                     children: [
+                      // Sonar: системный прокси не захватывает игры и голос Discord, VPN захватывает
+                      if (Platform.isWindows)
+                        SonarSettingsTile(
+                          icon: Icons.shield_moon_rounded,
+                          tint: const Color(0xFF5EEAD4),
+                          title: 'Весь компьютер через VPN',
+                          subtitle: 'Игры и голос в Discord тоже. Попросит права администратора',
+                          trailing: Switch(
+                            value: ref.watch(ConfigOptions.serviceMode) == ServiceMode.tun,
+                            onChanged: (on) => SonarWindows.setVpn(ref, on),
+                          ),
+                          onTap: () => SonarWindows.setVpn(ref, ref.read(ConfigOptions.serviceMode) != ServiceMode.tun),
+                        ),
                       SonarSettingsTile(
                         icon: Icons.tune_rounded,
                         title: t.pages.settings.general.title,

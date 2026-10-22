@@ -25,6 +25,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -64,8 +65,9 @@ object SonarUpdate {
                 // Сверяемся с настоящими часами: во сне телефона таймеры отстают
                 val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 if (System.currentTimeMillis() - prefs.getLong("checked", 0) >= EVERY_MS) {
-                    runCatching { checkAndInstall(app) }.onFailure { Log.w(TAG, "update check failed", it) }
-                    prefs.edit().putLong("checked", System.currentTimeMillis()).apply()
+                    val ok = runCatching { checkAndInstall(app) }.onFailure { Log.w(TAG, "update check failed", it) }
+                    // Не вышло: отметку не ставим, следующая попытка через полчаса, а не через 6 часов
+                    if (ok.isSuccess) prefs.edit().putLong("checked", System.currentTimeMillis()).apply()
                 }
                 delay(30 * 60 * 1000L)
             }
@@ -93,7 +95,8 @@ object SonarUpdate {
         val file = File(dir, "$tag-$name")
         val size = asset.optLong("size")
         if (!(file.exists() && file.length() == size)) {
-            dir.listFiles()?.filter { it != file }?.forEach { it.delete() }
+            // недокачанный кусок этого же файла оставляем: докачаем с места обрыва
+            dir.listFiles()?.filter { it != file && it.name != file.name + ".part" }?.forEach { it.delete() }
             download(asset.getString("browser_download_url"), file, size)
         }
         // Обновление на пару секунд выключает VPN: ждём, пока экран погаснет
@@ -193,20 +196,33 @@ object SonarUpdate {
         }
     }
 
-    private fun download(url: String, target: File, size: Long) {
+    /** Три попытки, каждая докачивает с места обрыва. */
+    private suspend fun download(url: String, target: File, size: Long) {
         val part = File(target.path + ".part")
-        val c = open(url)
-        try {
-            if (c.responseCode != 200) throw IllegalStateException("файл не скачался: ${c.responseCode}")
-            c.inputStream.use { input -> part.outputStream().use { input.copyTo(it) } }
-        } finally {
-            c.disconnect()
+        var last: Exception? = null
+        for (attempt in 1..3) {
+            try {
+                val have = if (part.exists()) part.length() else 0L
+                val c = open(url)
+                if (have in 1 until size) c.setRequestProperty("Range", "bytes=$have-")
+                try {
+                    val code = c.responseCode
+                    if (code != 200 && code != 206) throw IllegalStateException("файл не скачался: $code")
+                    val append = code == 206 && have > 0
+                    c.inputStream.use { input -> FileOutputStream(part, append).use { input.copyTo(it) } }
+                } finally {
+                    c.disconnect()
+                }
+                if (size > 0 && part.length() != size) throw IllegalStateException("файл скачался не целиком")
+                if (!part.renameTo(target)) throw IllegalStateException("не удалось сохранить файл")
+                return
+            } catch (e: Exception) {
+                last = e
+                Log.w(TAG, "download attempt $attempt failed", e)
+                delay(5_000L * attempt)
+            }
         }
-        if (size > 0 && part.length() != size) {
-            part.delete()
-            throw IllegalStateException("файл скачался не целиком")
-        }
-        if (!part.renameTo(target)) throw IllegalStateException("не удалось сохранить файл")
+        throw last ?: IllegalStateException("файл не скачался")
     }
 }
 

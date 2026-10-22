@@ -24,9 +24,11 @@ abstract class ConfigOptions {
     mapTo: (value) => value.key,
   );
 
+  // Sonar: не round-robin. Канал держит SonarChannelGuard, а если VPN поднялся без
+  // интерфейса, «липкая» стратегия хотя бы не раскидывает один сайт по всем каналам
   static final balancerStrategy = PreferencesNotifier.create<BalancerStrategy, String>(
     "balancer-strategy",
-    BalancerStrategy.roundRobin,
+    BalancerStrategy.stickySession,
     mapFrom: (value) => BalancerStrategy.values.firstWhere((e) => e.key == value),
     mapTo: (value) => value.key,
   );

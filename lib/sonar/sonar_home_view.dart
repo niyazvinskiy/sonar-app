@@ -26,6 +26,7 @@ class SonarHomeData {
     this.upTotal = 0,
     this.tappable = true,
     this.canRetryKey = false,
+    this.retryLabel = 'Попробовать ещё раз',
     this.channelEnabled = true,
   });
 
@@ -44,6 +45,7 @@ class SonarHomeData {
   final int upTotal;
   final bool tappable;
   final bool canRetryKey;
+  final String retryLabel;
   final bool channelEnabled;
 
   bool get connected => sphere == SphereState.connected;
@@ -139,7 +141,7 @@ class SonarHomeView extends StatelessWidget {
             if (data.canRetryKey)
               TextButton(
                 onPressed: onRetryKey,
-                child: const Text('Попробовать ещё раз', style: TextStyle(fontFamily: 'Jost', fontSize: 15)),
+                child: Text(data.retryLabel, style: const TextStyle(fontFamily: 'Jost', fontSize: 15)),
               ),
             AnimatedSize(
               duration: const Duration(milliseconds: 500),

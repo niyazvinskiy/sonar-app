@@ -7,18 +7,20 @@ import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_notifier.dart';
 import 'package:hiddify/features/route_rules/notifier/rules_notifier.dart';
 import 'package:hiddify/features/stats/notifier/stats_notifier.dart';
+import 'package:hiddify/sonar/sonar_channel_guard.dart';
 import 'package:hiddify/sonar/sonar_channels.dart';
 import 'package:hiddify/sonar/sonar_home_view.dart';
 import 'package:hiddify/sonar/sonar_key.dart';
 import 'package:hiddify/sonar/sonar_sphere.dart';
 import 'package:hiddify/sonar/sonar_updater.dart';
+import 'package:hiddify/sonar/sonar_windows.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 /// «Sonar · Основной» → «Основной»; автовыбор Hiddify показывается как «Лучший канал».
 String sonarChannelLabel(String tag) {
   final t = tag.trim();
   final lower = t.toLowerCase();
-  if (t.isEmpty || lower.contains('auto') || lower.contains('lowest') || lower.contains('select')) {
+  if (t.isEmpty || ['auto', 'lowest', 'select', 'balance'].any(lower.contains)) {
     return 'Лучший канал';
   }
   return t.replaceFirst(RegExp(r'^Sonar\s*·\s*'), '');
@@ -56,7 +58,11 @@ class SonarHome extends HookConsumerWidget {
 
     ref.listen(connectionNotifierProvider, (_, next) => autoConnect(next));
     useEffect(() {
-      Future.microtask(() => autoConnect(ref.read(connectionNotifierProvider)));
+      Future.microtask(() async {
+        // перезапустились с правами администратора ради режима VPN: подключаемся сами
+        if (await SonarWindows.takeConnectAfterRestart(ref)) ref.read(sonarConnectOnHomeProvider.notifier).state = true;
+        autoConnect(ref.read(connectionNotifierProvider));
+      });
       return null;
     }, const []);
 
@@ -72,8 +78,12 @@ class SonarHome extends HookConsumerWidget {
       AsyncLoading(valueOrNull: null) => SphereState.connecting,
       _ => SphereState.idle,
     };
+    final needsAdmin = sphere == SphereState.failed && _needsAdmin(status);
 
-    final channel = sonarChannelLabel(proxy?.groupSelectedTagDisplay ?? '');
+    // Автовыбор Sonar держит один канал; на экране видно, какой именно
+    final guard = ref.watch(sonarChannelGuardProvider);
+    final picked = sonarChannelLabel(proxy?.groupSelectedTagDisplay ?? '');
+    final channel = guard.auto && picked != 'Лучший канал' ? 'Авто · $picked' : picked;
     final title = switch (sphere) {
       _ when keyStatus is SonarKeyIssuing => 'Получаю личный ключ…',
       _ when keyStatus is SonarKeyFailed => 'Ключ не получен',
@@ -120,26 +130,33 @@ class SonarHome extends HookConsumerWidget {
         upTotal: stats?.uplinkTotal.toInt() ?? 0,
         // во время подключения капля не реагирует, а в сети отключает
         tappable: sphere != SphereState.connecting || connected,
-        canRetryKey: keyStatus is SonarKeyFailed,
+        canRetryKey: keyStatus is SonarKeyFailed || needsAdmin,
+        retryLabel: needsAdmin ? 'Перезапустить с правами администратора' : 'Попробовать ещё раз',
         channelEnabled: hasProfile,
       ),
       banner: const SonarUpdateBanner(),
       onTap: onTap,
-      onRetryKey: onTap,
+      onRetryKey: needsAdmin ? () => SonarWindows.restartAsAdmin(ref) : onTap,
       onMode: (v) => ref.read(rulesNotifierProvider.notifier).setSonarSmart(v),
       onChannel: () => showSonarChannels(context),
     );
   }
 
+  static String _failureText(AsyncValue<ConnectionStatus> status) => switch (status) {
+    AsyncValue(valueOrNull: Disconnected(connectionFailure: final f?)) => f.toString(),
+    AsyncError(:final error) => error.toString(),
+    _ => '',
+  };
+
+  static bool _needsAdmin(AsyncValue<ConnectionStatus> status) {
+    final failure = _failureText(status);
+    return failure.contains('missingPrivilege') || failure.contains('Access is denied');
+  }
+
   static String _failure(AsyncValue<ConnectionStatus> status) {
-    final failure = switch (status) {
-      AsyncValue(valueOrNull: Disconnected(connectionFailure: final f?)) => f.toString(),
-      AsyncError(:final error) => error.toString(),
-      _ => '',
-    };
-    if (failure.contains('missingPrivilege') || failure.contains('Access is denied')) {
-      return 'Для режима VPN Windows нужны права администратора. Запустите Sonar от имени администратора или выберите системный прокси в настройках.';
+    if (_needsAdmin(status)) {
+      return 'Для режима VPN Windows нужны права администратора. Sonar перезапустится и попросит их.';
     }
-    return 'Коснитесь капли ещё раз. Если не помогает, выберите канал «Запасной 443».';
+    return 'Коснитесь капли ещё раз. Если не помогает, выберите канал «Игры» или «Запасной».';
   }
 }

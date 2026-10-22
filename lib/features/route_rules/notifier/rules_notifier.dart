@@ -113,6 +113,10 @@ enum BuiltinRule {
         'aistudio.google.com', 'notebooklm.google.com', 'gemini.google.com', 'grok.com', //
         'brawlstarsgame.com', 'clashroyaleapp.com', 'clashofclans.com', 'rbxcdn.com',
       ],
+      // Голос Discord идёт по UDP прямо на IP, домена в нём не видно, поэтому адреса:
+      // голосовые серверы Discord у Cloudflare и в Google Cloud в Финляндии (22.10.2026
+      // их отдаёт latency.discord.media для серверов у Хельсинки)
+      ipCidrs: ['104.29.128.0/17', '35.217.0.0/18'],
     ),
     // У правила должно быть условие: «любой домен или любой адрес»
     sonarRestDirect => Rule(outbound: Outbound.direct, domainRegexes: ['.*'], ipCidrs: ['0.0.0.0/0', '::/0']),

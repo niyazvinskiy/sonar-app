@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/sonar/sonar.dart';
+import 'package:hiddify/sonar/sonar_channel_guard.dart';
 import 'package:hiddify/sonar/sonar_style.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
-/// Окно выбора канала: лучший сам, или любой из четырёх руками, с живым пингом.
+/// Окно выбора канала: лучший сам, или любой руками, с живым пингом.
 Future<void> showSonarChannels(BuildContext context) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
@@ -19,8 +20,8 @@ Future<void> showSonarChannels(BuildContext context) => showModalBottomSheet<voi
   final raw = o.tagDisplay.isNotEmpty ? o.tagDisplay : o.tag;
   final name = raw.replaceFirst(RegExp(r'^Sonar\s*·\s*'), '');
   final lower = raw.toLowerCase();
-  if (o.isGroup || lower.contains('auto') || lower.contains('lowest') || lower.contains('urltest')) {
-    return (name: 'Лучший канал', hint: 'Sonar сам держит самый быстрый живой', icon: Icons.auto_awesome_rounded);
+  if (o.isGroup || ['auto', 'lowest', 'urltest', 'balance'].any(lower.contains)) {
+    return (name: 'Лучший канал', hint: 'Sonar сам держит живой канал', icon: Icons.auto_awesome_rounded);
   }
   if (name.contains('443') && name.contains('Запасной')) {
     return (name: name, hint: 'для кафе, отелей и офисов', icon: Icons.public_rounded);
@@ -29,7 +30,9 @@ Future<void> showSonarChannels(BuildContext context) => showModalBottomSheet<voi
   if (name.contains('Игры')) {
     return (name: name, hint: 'UDP: игры и голос в Discord', icon: Icons.sports_esports_rounded);
   }
-  if (name.contains('Основной')) return (name: name, hint: 'для всего, по умолчанию', icon: Icons.bolt_rounded);
+  if (name.contains('Основной')) {
+    return (name: name, hint: 'для всего, проходит и в кафе', icon: Icons.bolt_rounded);
+  }
   return (name: name, hint: '', icon: Icons.graphic_eq_rounded);
 }
 
@@ -40,9 +43,11 @@ class SonarChannelSheet extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final group = ref.watch(proxiesOverviewNotifierProvider);
     final g = group.valueOrNull;
-    final items = <OutboundInfo>[...?g?.items.where((o) => o.isVisible || o.isGroup)];
-    // «Лучший канал» всегда первым
-    items.sort((a, b) => (b.isGroup ? 1 : 0) - (a.isGroup ? 1 : 0));
+    // Группы ядра (round-robin и «быстрейший») не показываем: «Лучший канал» здесь
+    // это автовыбор Sonar, он держит один живой канал и не рвёт звонки
+    final items = g == null ? <OutboundInfo>[] : sonarChannels(g);
+    final guard = ref.watch(sonarChannelGuardProvider);
+    final now = items.where((o) => o.tag == guard.current).firstOrNull;
 
     return Container(
       decoration: const BoxDecoration(
@@ -70,8 +75,8 @@ class SonarChannelSheet extends HookConsumerWidget {
           Text('Канал', style: SonarText.title.copyWith(fontSize: 24)),
           const SizedBox(height: 4),
           const Text(
-            'Обычно ничего выбирать не нужно: Sonar сам держит самый быстрый живой канал. '
-            'Руками стоит переключать, если что-то не открывается.',
+            'Обычно ничего выбирать не нужно: Sonar держит один живой канал и сам переходит '
+            'на запасной, только если этот перестал отвечать. Звонки при этом не рвутся.',
             style: SonarText.hint,
           ),
           const SizedBox(height: 16),
@@ -86,12 +91,22 @@ class SonarChannelSheet extends HookConsumerWidget {
               ),
             )
           else ...[
+            _ChannelTile(
+              info: OutboundInfo(tag: 'auto', tagDisplay: 'auto', isGroup: true, urlTestDelay: now?.urlTestDelay ?? 0),
+              hint: now == null ? null : 'Сейчас: ${sonarChannelInfo(now).name}',
+              selected: guard.auto,
+              onTap: () async {
+                await ref.read(sonarChannelGuardProvider.notifier).choose('');
+                if (context.mounted) Navigator.of(context).pop();
+              },
+            ),
+            const SizedBox(height: 8),
             for (final o in items) ...[
               _ChannelTile(
                 info: o,
-                selected: o.tag == g.selected,
+                selected: !guard.auto && o.tag == g.selected,
                 onTap: () async {
-                  await ref.read(proxiesOverviewNotifierProvider.notifier).changeProxy(g.tag, o.tag);
+                  await ref.read(sonarChannelGuardProvider.notifier).choose(o.tag);
                   if (context.mounted) Navigator.of(context).pop();
                 },
               ),
@@ -113,15 +128,19 @@ class SonarChannelSheet extends HookConsumerWidget {
 }
 
 class _ChannelTile extends StatelessWidget {
-  const _ChannelTile({required this.info, required this.selected, required this.onTap});
+  const _ChannelTile({required this.info, required this.selected, required this.onTap, this.hint});
 
   final OutboundInfo info;
   final bool selected;
   final VoidCallback onTap;
 
+  /// вместо подсказки по имени канала
+  final String? hint;
+
   @override
   Widget build(BuildContext context) {
     final c = sonarChannelInfo(info);
+    final hint = this.hint ?? c.hint;
     final ms = info.urlTestDelay;
     final valid = ms > 0 && ms < 65000;
     return Material(
@@ -142,7 +161,7 @@ class _ChannelTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(c.name, style: SonarText.item),
-                    if (c.hint.isNotEmpty) Text(c.hint, style: SonarText.hint),
+                    if (hint.isNotEmpty) Text(hint, style: SonarText.hint),
                   ],
                 ),
               ),

@@ -110,8 +110,7 @@ class SonarSettingsTile extends StatelessWidget {
     ),
     title: Text(title, style: SonarText.item.copyWith(fontWeight: FontWeight.w400)),
     subtitle: subtitle == null ? null : Text(subtitle!, style: SonarText.hint),
-    trailing:
-        trailing ?? Icon(Icons.chevron_right_rounded, color: const Color(Sonar.feather).withValues(alpha: .6)),
+    trailing: trailing ?? Icon(Icons.chevron_right_rounded, color: const Color(Sonar.feather).withValues(alpha: .6)),
   );
 }
 
@@ -151,8 +150,7 @@ class SonarAppCard extends HookConsumerWidget {
       SonarUpdatePhase.idle when checked.value => ('Это последняя версия', 'Проверить', check),
       SonarUpdatePhase.idle => ('Обновляется сам, в фоне', 'Проверить', check),
     };
-    final busy =
-        checking.value || u.phase == SonarUpdatePhase.downloading || u.phase == SonarUpdatePhase.installing;
+    final busy = checking.value || u.phase == SonarUpdatePhase.downloading || u.phase == SonarUpdatePhase.installing;
 
     return Container(
       padding: const EdgeInsetsDirectional.fromSTEB(18, 16, 10, 16),

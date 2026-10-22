@@ -28,6 +28,7 @@ import 'package:hiddify/features/settings/overview/sections/tls_tricks_page.dart
 import 'package:hiddify/features/settings/overview/settings_page.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/sonar/sonar.dart';
+import 'package:hiddify/sonar/sonar_channel_guard.dart';
 import 'package:hiddify/sonar/sonar_channels.dart';
 import 'package:hiddify/sonar/sonar_home_view.dart';
 import 'package:hiddify/sonar/sonar_intro.dart';
@@ -113,18 +114,23 @@ Future<List<Override>> _app() async {
   ];
 }
 
+class _AutoGuard extends SonarChannelGuard {
+  @override
+  SonarChannelState build() => const SonarChannelState(current: 'a');
+}
+
 class _FakeProxies extends ProxiesOverviewNotifier {
   @override
   Stream<OutboundGroup?> build() => Stream.value(
     OutboundGroup(
       tag: 'select',
-      selected: 'auto',
+      selected: 'a',
       items: [
-        OutboundInfo(tag: 'auto', tagDisplay: 'auto', isGroup: true, isVisible: true, urlTestDelay: 51),
-        OutboundInfo(tag: 'a', tagDisplay: 'Sonar · Основной', isVisible: true, urlTestDelay: 51),
-        OutboundInfo(tag: 'b', tagDisplay: 'Sonar · Игры', isVisible: true, urlTestDelay: 64),
+        OutboundInfo(tag: 'lowest', tagDisplay: 'lowest', isGroup: true, isVisible: true, urlTestDelay: 51),
+        OutboundInfo(tag: 'balance', tagDisplay: 'balance', isGroup: true, isVisible: true, urlTestDelay: 51),
         OutboundInfo(tag: 'c', tagDisplay: 'Sonar · Запасной', isVisible: true, urlTestDelay: 148),
-        OutboundInfo(tag: 'd', tagDisplay: 'Sonar · Запасной 443', isVisible: true, urlTestDelay: 260),
+        OutboundInfo(tag: 'b', tagDisplay: 'Sonar · Игры', isVisible: true, urlTestDelay: 64),
+        OutboundInfo(tag: 'a', tagDisplay: 'Sonar · Основной', isVisible: true, urlTestDelay: 51),
       ],
     ),
   );
@@ -230,7 +236,10 @@ void main() {
       tester,
       'channels',
       ProviderScope(
-        overrides: [proxiesOverviewNotifierProvider.overrideWith(_FakeProxies.new)],
+        overrides: [
+          proxiesOverviewNotifierProvider.overrideWith(_FakeProxies.new),
+          sonarChannelGuardProvider.overrideWith(_AutoGuard.new),
+        ],
         child: _frame(
           Stack(
             children: [
