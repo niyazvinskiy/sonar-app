@@ -27,6 +27,8 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.net.URL
 
 /**
@@ -59,6 +61,10 @@ object SonarUpdate {
     fun startLoop(context: Context) {
         if (loop?.isActive == true) return
         val app = context.applicationContext
+        // Смешанный вход ядра: Sonar исключён из своего VPN и без него ходил бы к GitHub
+        // напрямую, а напрямую из России GitHub отвечает с перебоями
+        port = (app.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            .all["flutter.mixed-port"] as? Number)?.toInt() ?: 12334
         loop = CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
             delay(3 * 60 * 1000L) // сначала даём VPN спокойно подключиться
             while (isActive) {
@@ -179,31 +185,47 @@ object SonarUpdate {
         return false
     }
 
-    private fun open(url: String) = (URL(url).openConnection() as HttpURLConnection).apply {
+    @Volatile
+    private var port = 12334
+
+    /** Через локальный вход Sonar или напрямую. */
+    private fun open(url: String, viaSonar: Boolean): HttpURLConnection {
+        val proxy = if (viaSonar) Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", port)) else Proxy.NO_PROXY
+        return (URL(url).openConnection(proxy) as HttpURLConnection).also { setup(it) }
+    }
+
+    private fun setup(c: HttpURLConnection) = c.apply {
         connectTimeout = 15_000
         readTimeout = 60_000
         setRequestProperty("Accept", "application/vnd.github+json")
         setRequestProperty("User-Agent", "Sonar-Android")
     }
 
+    /** Сначала через Sonar, потом напрямую. */
     private fun fetch(url: String): String {
-        val c = open(url)
-        try {
-            if (c.responseCode != 200) throw IllegalStateException("GitHub ответил ${c.responseCode}")
-            return c.inputStream.bufferedReader().use { it.readText() }
-        } finally {
-            c.disconnect()
+        var last: Exception? = null
+        for (viaSonar in listOf(true, false)) {
+            val c = open(url, viaSonar)
+            try {
+                if (c.responseCode != 200) throw IllegalStateException("GitHub ответил ${c.responseCode}")
+                return c.inputStream.bufferedReader().use { it.readText() }
+            } catch (e: Exception) {
+                last = e
+            } finally {
+                c.disconnect()
+            }
         }
+        throw last ?: IllegalStateException("GitHub не ответил")
     }
 
-    /** Три попытки, каждая докачивает с места обрыва. */
+    /** Три попытки, каждая докачивает с места обрыва: две через Sonar, последняя напрямую. */
     private suspend fun download(url: String, target: File, size: Long) {
         val part = File(target.path + ".part")
         var last: Exception? = null
         for (attempt in 1..3) {
             try {
                 val have = if (part.exists()) part.length() else 0L
-                val c = open(url)
+                val c = open(url, viaSonar = attempt < 3)
                 if (have in 1 until size) c.setRequestProperty("Range", "bytes=$have-")
                 try {
                     val code = c.responseCode

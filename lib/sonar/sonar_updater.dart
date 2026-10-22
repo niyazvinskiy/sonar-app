@@ -97,18 +97,10 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
   Future<void> check() async {
     if (state.phase == SonarUpdatePhase.downloading || state.phase == SonarUpdatePhase.installing) return;
     if (state.phase == SonarUpdatePhase.ready) return _scheduleInstall();
-    final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 15), validateStatus: (_) => true));
     try {
       final current = Version.parse((await PackageInfo.fromPlatform()).version);
-      final r = await dio.get<dynamic>(
-        'https://api.github.com/repos/${Sonar.repo}/releases/latest',
-        options: Options(headers: {'Accept': 'application/vnd.github+json'}),
-      );
-      if (r.statusCode != 200 || r.data is! Map) {
-        _log.warning('releases/latest ответил ${r.statusCode}');
-        return _retryIn(const Duration(hours: 1));
-      }
-      final release = (r.data as Map).cast<String, dynamic>();
+      final release = await _latestRelease();
+      if (release == null) return _retryIn(const Duration(hours: 1));
       final tag = (release['tag_name'] as String? ?? '').replaceFirst(RegExp('^(sonar-)?v'), '');
       final latest = Version.parse(tag.split('+').first);
       await _cleanup(keep: latest > current ? tag : null);
@@ -139,27 +131,58 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
       state = SonarUpdateState(SonarUpdatePhase.failed, version: state.version, page: state.page, error: '$e');
       // плашка «не скачалось» не навсегда: через час попробуем снова
       _retryIn(const Duration(hours: 1));
-    } finally {
-      dio.close();
     }
   }
 
-  /// Три попытки напрямую с докачкой с места обрыва, потом через сам Sonar.
+  /// Пути к GitHub по порядку. Пока Sonar подключён, сначала через него: напрямую из
+  /// России GitHub отвечает с перебоями (22.10.2026 у Никиты 6 запросов из 10), а
+  /// само приложение на Android исключено из своего VPN и без этого ходит напрямую.
+  List<bool> get _routes => _canProxy ? const [true, true, false, false] : const [false, false, false];
+
+  /// Клиент к GitHub напрямую или через локальный вход Sonar (смешанный порт ядра).
+  /// Тишина дольше минуты при загрузке: связь оборвалась, следующая попытка докачает.
+  Dio _dio({required bool viaSonar}) {
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 20),
+        receiveTimeout: const Duration(minutes: 1),
+        validateStatus: (_) => true,
+      ),
+    );
+    if (viaSonar) {
+      final port = ref.read(ConfigOptions.mixedPort);
+      dio.httpClientAdapter = IOHttpClientAdapter(
+        createHttpClient: () => HttpClient()..findProxy = (_) => 'PROXY 127.0.0.1:$port',
+      );
+    }
+    return dio;
+  }
+
+  Future<Map<String, dynamic>?> _latestRelease() async {
+    for (final viaSonar in _routes) {
+      final dio = _dio(viaSonar: viaSonar);
+      try {
+        final r = await dio.get<dynamic>(
+          'https://api.github.com/repos/${Sonar.repo}/releases/latest',
+          options: Options(headers: {'Accept': 'application/vnd.github+json'}),
+        );
+        if (r.statusCode == 200 && r.data is Map) return (r.data as Map).cast<String, dynamic>();
+        _log.warning('releases/latest ответил ${r.statusCode}');
+      } catch (e) {
+        _log.warning('releases/latest ${viaSonar ? 'через Sonar' : 'напрямую'}: $e');
+      } finally {
+        dio.close();
+      }
+    }
+    return null;
+  }
+
+  /// Несколько попыток, каждая докачивает с места обрыва; через Sonar, пока он подключён.
   Future<void> _download(String url, File file, int size, String tag, String page) async {
     final part = File('${file.path}.part');
     Object? last;
-    for (final viaSonar in [false, false, false, true]) {
-      if (viaSonar && !_canProxy) break;
-      // тишина дольше минуты: связь оборвалась, следующая попытка докачает
-      final dio = Dio(
-        BaseOptions(connectTimeout: const Duration(seconds: 20), receiveTimeout: const Duration(minutes: 1)),
-      );
-      if (viaSonar) {
-        final port = ref.read(ConfigOptions.mixedPort);
-        dio.httpClientAdapter = IOHttpClientAdapter(
-          createHttpClient: () => HttpClient()..findProxy = (_) => 'PROXY 127.0.0.1:$port',
-        );
-      }
+    for (final viaSonar in _routes) {
+      final dio = _dio(viaSonar: viaSonar);
       try {
         final have = await part.exists() ? await part.length() : 0;
         final resp = await dio.get<ResponseBody>(
@@ -169,7 +192,9 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
             headers: {if (have > 0 && have < size) 'Range': 'bytes=$have-'},
           ),
         );
-        final append = have > 0 && resp.statusCode == 206;
+        final code = resp.statusCode ?? 0;
+        if (code != 200 && code != 206) throw Exception('GitHub ответил $code');
+        final append = have > 0 && code == 206;
         final sink = part.openWrite(mode: append ? FileMode.append : FileMode.write);
         var got = append ? have : 0;
         try {
@@ -197,9 +222,8 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
     throw last ?? Exception('файл не скачался');
   }
 
-  /// Через локальный прокси Sonar можно качать, только пока он подключён на компьютере.
-  bool get _canProxy =>
-      !Platform.isAndroid && !Platform.isIOS && ref.read(connectionNotifierProvider).valueOrNull is Connected;
+  /// Через локальный вход Sonar можно ходить, только пока он подключён.
+  bool get _canProxy => ref.read(connectionNotifierProvider).valueOrNull is Connected;
 
   /// Убирает скачанные раньше установщики: после обновления они только занимают место.
   static Future<void> _cleanup({String? keep}) async {
