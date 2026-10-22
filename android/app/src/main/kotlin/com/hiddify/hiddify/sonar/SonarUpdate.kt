@@ -8,7 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
+import android.net.TrafficStats
 import android.os.PowerManager
+import android.os.Process
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.IntentCompat
@@ -105,11 +107,28 @@ object SonarUpdate {
             dir.listFiles()?.filter { it != file && it.name != file.name + ".part" }?.forEach { it.delete() }
             download(asset.getString("browser_download_url"), file, size)
         }
-        // Обновление на пару секунд выключает VPN: ждём, пока экран погаснет
-        val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-        while (power.isInteractive) delay(60 * 1000L)
+        // Обновление на несколько секунд выключает VPN. Ставим, только когда экран погашен
+        // и через VPN 10 минут подряд почти ничего не идёт: звонок с погашенным экраном,
+        // загрузка или игра не прервутся
+        waitUntilIdle(context)
         Log.i(TAG, "installing $tag over $current")
         install(context, file, tag)
+    }
+
+    /** Ждёт 10 минут подряд с погашенным экраном и трафиком меньше 3 КБ/с. */
+    private suspend fun waitUntilIdle(context: Context) {
+        val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val uid = Process.myUid()
+        fun bytes() = TrafficStats.getUidRxBytes(uid) + TrafficStats.getUidTxBytes(uid)
+        var quiet = 0
+        var last = bytes()
+        while (quiet < 10) {
+            delay(60 * 1000L)
+            val now = bytes()
+            val perMinute = now - last
+            last = now
+            quiet = if (!power.isInteractive && perMinute in 0 until 180 * 1024) quiet + 1 else 0
+        }
     }
 
     fun install(context: Context, file: File, version: String) {

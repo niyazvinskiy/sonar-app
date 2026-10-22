@@ -94,7 +94,7 @@ adb shell input keyevent KEYCODE_SLEEP
 log "экран погашен, жду обновления (проверка через 3 минуты после подключения)"
 
 before=$(version)
-for i in $(seq 1 90); do
+for i in $(seq 1 150); do
   v=$(version)
   if [ -n "$v" ] && [ "$v" != "$before" ]; then
     log "версия сменилась: $before -> $v"
@@ -104,7 +104,7 @@ for i in $(seq 1 90); do
 done
 after=$(version)
 if [ "$after" = "$before" ]; then
-  log "за 15 минут обновление не поставилось"
+  log "за 25 минут обновление не поставилось"
   adb shell dumpsys notification --noredact 2>/dev/null | grep -A3 -i "sonar" | head -20
   finish 1
 fi

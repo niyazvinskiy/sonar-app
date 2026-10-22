@@ -9,13 +9,15 @@ import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
-/// Порядок каналов для автовыбора: сначала самый проходимый, дальше запасные.
-const _priority = ['Основной', 'Игры', 'Запасной'];
-
+/// Порядок для автовыбора по замеру 22.10.2026 (UDP, как голос Discord, из сети
+/// Никиты): XHTTP на 443 96 мс без потерь, XHTTP на 8443 109 мс, Hysteria 193–372 мс
+/// и до 6% потерь, провайдеры притормаживают UDP до зарубежных серверов.
 int _rank(OutboundInfo o) {
   final name = o.tagDisplay.isNotEmpty ? o.tagDisplay : o.tag;
-  final i = _priority.indexWhere(name.contains);
-  return i == -1 ? _priority.length : i;
+  if (name.contains('Основной')) return 0;
+  if (name.contains('UDP') || name.contains('Игры')) return 2;
+  if (name.contains('Запасной')) return 1;
+  return 3;
 }
 
 /// Каналы подписки без групп ядра, в порядке автовыбора.
@@ -42,10 +44,11 @@ class SonarChannelState {
 /// живой: звонок и игра важнее лишних миллисекунд.
 class SonarChannelGuard extends Notifier<SonarChannelState> {
   static const _prefKey = 'sonar_channel';
-  static const _every = Duration(minutes: 2);
+  static const _every = Duration(minutes: 1);
 
   Timer? _timer;
   int _fails = 0;
+  int _checks = 0;
   bool _busy = false;
 
   @override
@@ -70,7 +73,8 @@ class SonarChannelGuard extends Notifier<SonarChannelState> {
   void _start() {
     _timer?.cancel();
     _fails = 0;
-    // Первая проверка вскоре после подключения, дальше раз в две минуты
+    _checks = 0;
+    // Первая проверка вскоре после подключения, дальше раз в минуту
     Future<void>.delayed(const Duration(seconds: 6), _check);
     _timer = Timer.periodic(_every, (_) => _check());
   }
@@ -126,6 +130,7 @@ class SonarChannelGuard extends Notifier<SonarChannelState> {
     if (ref.read(connectionNotifierProvider).valueOrNull is! Connected) return;
     final before = ref.read(proxiesOverviewNotifierProvider).valueOrNull;
     if (before == null) return;
+    _checks++;
     await ref.read(proxyRepositoryProvider).urlTest(before.tag).run();
     // Результаты проверки приходят потоком, ждём, пока он обновится
     await Future<void>.delayed(const Duration(seconds: 8));
@@ -138,7 +143,8 @@ class SonarChannelGuard extends Notifier<SonarChannelState> {
       _fails = 0;
       return;
     }
-    if (++_fails < 2) return;
+    // Сразу после подключения хватает одного промаха: человек как раз ждёт связь
+    if (++_fails < (_checks <= 1 ? 1 : 2)) return;
     final next = channels.where((o) => o.tag != current.tag && _valid(o)).firstOrNull;
     if (next == null) return;
     _fails = 0;

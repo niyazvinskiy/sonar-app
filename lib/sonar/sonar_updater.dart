@@ -41,11 +41,11 @@ class SonarUpdateState {
 /// Обновления Sonar сами: новая версия ищется в релизах GitHub при запуске и раз в
 /// 6 часов, скачивается в фоне и ставится.
 ///
-/// Windows и Linux ставят без вопросов: при выключенном VPN сразу, при включённом,
-/// когда человек отошёл от компьютера на 3 минуты, и не позже чем через 12 часов
-/// после скачивания. Sonar перезапускается и подключается сам. Android делает то же
-/// из службы VPN (SonarUpdate.kt), а здесь остаётся кнопка «Обновить». На macOS
-/// откроется образ.
+/// Windows и Linux ставят без вопросов, но только при выключенном VPN: живое соединение
+/// обновление не рвёт. Если VPN включён всё время, обновление встанет при следующем
+/// запуске Sonar, ещё до подключения. Android ставит из службы VPN (SonarUpdate.kt),
+/// когда экран погашен и через VPN давно ничего не идёт, а здесь остаётся кнопка
+/// «Обновить». На macOS откроется образ.
 ///
 /// Загрузка не сдаётся с первого раза: три попытки с докачкой, потом через сам Sonar,
 /// если GitHub напрямую не отвечает. Выпуск, к которому файл ещё не приложен, не
@@ -54,8 +54,6 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
   final _log = appLogger('SonarUpdater');
   Timer? _timer;
   Timer? _retry;
-  Timer? _idleWatch;
-  DateTime? _readyAt;
   bool _autoInstallTried = false;
 
   @override
@@ -65,8 +63,9 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
     ref.onDispose(() {
       _timer?.cancel();
       _retry?.cancel();
-      _idleWatch?.cancel();
     });
+    // Скачанное в прошлый раз ставим сразу при запуске, пока VPN ещё не подключён
+    Future<void>.delayed(const Duration(seconds: 1), _installPending);
     Future<void>.delayed(const Duration(seconds: 4), check);
     // Скачанное обновление при выключенном VPN ставим сразу
     ref.listen(connectionNotifierProvider, (_, next) {
@@ -87,6 +86,29 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
       return 'Sonar-Android-universal.apk';
     }
     return null;
+  }
+
+  /// Установщик новой версии, скачанный целиком в прошлый запуск: .part в него
+  /// переименовывается только после проверки размера.
+  Future<void> _installPending() async {
+    if (!_silentPlatform || ref.read(connectionNotifierProvider).valueOrNull is Connected) return;
+    try {
+      final current = Version.parse((await PackageInfo.fromPlatform()).version);
+      final dir = Directory('${(await getTemporaryDirectory()).path}${Platform.pathSeparator}sonar-update');
+      if (!dir.existsSync()) return;
+      for (final f in dir.listSync().whereType<File>()) {
+        final name = f.uri.pathSegments.last;
+        if (!name.endsWith('-$_assetName')) continue;
+        final tag = name.substring(0, name.length - _assetName!.length - 1);
+        final v = Version.parse(tag.split('+').first);
+        if (v <= current) continue;
+        _log.info('ставлю скачанный в прошлый раз $tag');
+        state = SonarUpdateState(SonarUpdatePhase.ready, version: tag, file: f);
+        return _autoInstall();
+      }
+    } catch (e) {
+      _log.warning('скачанное обновление не поставилось: $e');
+    }
   }
 
   void _retryIn(Duration d) {
@@ -124,7 +146,6 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
         await _download(asset['browser_download_url'] as String, file, size, tag, page);
       }
       state = SonarUpdateState(SonarUpdatePhase.ready, version: tag, file: file, page: page);
-      _readyAt = DateTime.now();
       await _scheduleInstall();
     } catch (e) {
       _log.error('обновление не скачалось', e);
@@ -241,18 +262,12 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
 
   bool get _silentPlatform => Platform.isWindows || (Platform.isLinux && Platform.environment['APPIMAGE'] != null);
 
-  /// Когда ставить скачанное: VPN выключен — сразу; включён — когда человек отошёл.
+  /// Когда ставить скачанное: только при выключенном VPN. Живое соединение не рвём,
+  /// даже если человек давно не трогает компьютер: у него может идти звонок, загрузка
+  /// или игра. Иначе обновление встанет при следующем запуске Sonar, ещё до подключения.
   Future<void> _scheduleInstall() async {
     if (!_silentPlatform) return;
     if (ref.read(connectionNotifierProvider).valueOrNull is! Connected) return _autoInstall();
-    _idleWatch?.cancel();
-    _idleWatch = Timer.periodic(const Duration(minutes: 1), (_) {
-      final waited = _readyAt == null ? Duration.zero : DateTime.now().difference(_readyAt!);
-      if (sonarIdle() >= const Duration(minutes: 3) || waited >= const Duration(hours: 12)) {
-        _idleWatch?.cancel();
-        unawaited(_autoInstall());
-      }
-    });
   }
 
   /// Без вопросов ставим только на Windows и Linux, и только один раз за запуск.

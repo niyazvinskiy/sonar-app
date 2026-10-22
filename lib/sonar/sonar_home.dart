@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hiddify/core/model/constants.dart';
+import 'package:hiddify/core/preferences/preferences_provider.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
@@ -14,6 +15,7 @@ import 'package:hiddify/sonar/sonar_key.dart';
 import 'package:hiddify/sonar/sonar_sphere.dart';
 import 'package:hiddify/sonar/sonar_updater.dart';
 import 'package:hiddify/sonar/sonar_windows.dart';
+import 'package:hiddify/utils/platform_utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 /// «Sonar · Основной» → «Основной»; автовыбор Hiddify показывается как «Лучший канал».
@@ -56,11 +58,25 @@ class SonarHome extends HookConsumerWidget {
       ref.read(connectionNotifierProvider.notifier).toggleConnection();
     }
 
-    ref.listen(connectionNotifierProvider, (_, next) => autoConnect(next));
+    // Режим VPN без прав (например, Sonar запустился сам при входе в Windows): задача с
+    // правами уже есть, поэтому перезапускаемся через неё сами, без вопросов, один раз
+    final elevating = useRef(false);
+    ref.listen(connectionNotifierProvider, (_, next) async {
+      autoConnect(next);
+      if (next.valueOrNull is Connected) await _remember(ref, true);
+      if (!elevating.value && _needsAdmin(next) && !await SonarWindows.isAdmin() && await SonarWindows.hasTask()) {
+        elevating.value = true;
+        await SonarWindows.restartAsAdmin(ref);
+      }
+    });
     useEffect(() {
       Future.microtask(() async {
-        // перезапустились с правами администратора ради режима VPN: подключаемся сами
-        if (await SonarWindows.takeConnectAfterRestart(ref)) ref.read(sonarConnectOnHomeProvider.notifier).state = true;
+        // перезапустились ради прав или обновления, или на компьютере Sonar был
+        // подключён, когда его закрыли: подключаемся сами
+        final again = await SonarWindows.takeConnectAfterRestart(ref);
+        final prefs = await ref.read(sharedPreferencesProvider.future);
+        final wasOn = PlatformUtils.isDesktop && (prefs.getBool(_wasConnected) ?? false);
+        if (again || wasOn) ref.read(sonarConnectOnHomeProvider.notifier).state = true;
         autoConnect(ref.read(connectionNotifierProvider));
       });
       return null;
@@ -107,7 +123,11 @@ class SonarHome extends HookConsumerWidget {
 
     Future<void> onTap() async {
       final notifier = ref.read(connectionNotifierProvider.notifier);
-      if (connected) return notifier.toggleConnection();
+      if (connected) {
+        // выключили руками: при следующем запуске сами не подключаемся
+        await _remember(ref, false);
+        return notifier.toggleConnection();
+      }
       if (status.valueOrNull is! Disconnected && status is! AsyncError) return;
       if (!await ref.read(sonarKeyProvider.notifier).ensure()) return;
       // Подписка только что добавлена: даём ядру подхватить её
@@ -141,6 +161,11 @@ class SonarHome extends HookConsumerWidget {
       onChannel: () => showSonarChannels(context),
     );
   }
+
+  static const _wasConnected = 'sonar_was_connected';
+
+  static Future<void> _remember(WidgetRef ref, bool on) async =>
+      (await ref.read(sharedPreferencesProvider.future)).setBool(_wasConnected, on);
 
   static String _failureText(AsyncValue<ConnectionStatus> status) => switch (status) {
     AsyncValue(valueOrNull: Disconnected(connectionFailure: final f?)) => f.toString(),

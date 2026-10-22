@@ -285,7 +285,9 @@ void main() {
   });
 
   testWidgets('экран: общие настройки', skip: !_enabled, (tester) async {
-    await page(tester, 'settings-general', const SonarBackdrop(child: GeneralPage()), [sonarUpdaterProvider.overrideWith(_NoUpdates.new)]);
+    await page(tester, 'settings-general', const SonarBackdrop(child: GeneralPage()), [
+      sonarUpdaterProvider.overrideWith(_NoUpdates.new),
+    ]);
   });
 
   final subpages = <String, Widget Function()>{

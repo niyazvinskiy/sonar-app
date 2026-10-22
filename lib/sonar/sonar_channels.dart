@@ -23,15 +23,12 @@ Future<void> showSonarChannels(BuildContext context) => showModalBottomSheet<voi
   if (o.isGroup || ['auto', 'lowest', 'urltest', 'balance'].any(lower.contains)) {
     return (name: 'Лучший канал', hint: 'Sonar сам держит живой канал', icon: Icons.auto_awesome_rounded);
   }
-  if (name.contains('443') && name.contains('Запасной')) {
-    return (name: name, hint: 'для кафе, отелей и офисов', icon: Icons.public_rounded);
+  if (name.contains('UDP') || name.contains('Игры')) {
+    return (name: name, hint: 'другой путь, по UDP, если не работают оба', icon: Icons.waves_rounded);
   }
   if (name.contains('Запасной')) return (name: name, hint: 'если основной режут', icon: Icons.alt_route_rounded);
-  if (name.contains('Игры')) {
-    return (name: name, hint: 'UDP: игры и голос в Discord', icon: Icons.sports_esports_rounded);
-  }
   if (name.contains('Основной')) {
-    return (name: name, hint: 'для всего, проходит и в кафе', icon: Icons.bolt_rounded);
+    return (name: name, hint: 'сайты, нейросети, Discord, игры', icon: Icons.bolt_rounded);
   }
   return (name: name, hint: '', icon: Icons.graphic_eq_rounded);
 }
