@@ -1,6 +1,6 @@
-"""Картинки установщика Windows: фон «ночная вода», капля Sonar и значок для шапки.
+"""Картинки установщика Windows: фон «ночная вода», знак Sonar и значок для шапки.
 
-Inno Setup 6.7 в тёмном стиле кладёт фон под все страницы, каплю показывает на
+Inno Setup 6.7 в тёмном стиле кладёт фон под все страницы, знак показывает на
 приветствии и в конце, значок в шапке остальных шагов. Под каждый масштаб экрана
 свой файл, установщик сам берёт подходящий.
 Запуск из корня репозитория: python scripts/sonar_installer_art.py
@@ -11,13 +11,14 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
+from sonar_icons import mark, render, wordmark
+
 OUT = Path(__file__).resolve().parent.parent / "windows" / "packaging" / "exe" / "art"
 NIGHT0 = np.array((7, 11, 22), np.float32)
 NIGHT1 = np.array((14, 22, 48), np.float32)
 NIGHT2 = np.array((30, 45, 74), np.float32)
 INDIGO = np.array((124, 140, 255), np.float32)
 AQUA = np.array((94, 234, 212), np.float32)
-LAVENDER = np.array((214, 220, 255), np.float32)
 
 
 def blob(w, h, cx, cy, r, color, alpha):
@@ -56,79 +57,22 @@ def background(w, h):
     return Image.fromarray(arr.clip(0, 255).astype(np.uint8), "RGB")
 
 
-def sphere(size):
-    """Перламутровая капля: сиреневый свет сверху, бирюза снизу, блик и ободок."""
-    s = size
-    yy, xx = np.mgrid[0:s, 0:s].astype(np.float32)
-    c = (s - 1) / 2
-    nx, ny = (xx - c) / (s / 2), (yy - c) / (s / 2)
-    rr = np.hypot(nx, ny)
-    inside = np.clip((1 - rr) * s / 2, 0, 1)  # мягкий край в один пиксель
-    z = np.sqrt(np.clip(1 - rr**2, 0, 1))
-    # свет падает сверху слева
-    lx, ly, lz = -0.45, -0.55, 0.7
-    ln = math.sqrt(lx * lx + ly * ly + lz * lz)
-    diffuse = np.clip((nx * lx + ny * ly + z * lz) / ln, 0, 1)
-    t_aqua = np.clip((nx * 0.6 + ny * 0.8 + 0.3) * 0.9, 0, 1)[..., None]
-    base = LAVENDER * (1 - t_aqua) + AQUA * t_aqua
-    shade = 0.32 + 0.78 * diffuse[..., None]
-    col = base * shade
-    # блик
-    hx, hy = nx + 0.36, ny + 0.42
-    spec = np.exp(-(hx**2 + hy**2) / 0.035)[..., None]
-    col = col * (1 - spec * 0.85) + 255 * spec * 0.85
-    # ободок: край чуть светлее, как у жемчуга
-    rim = np.clip((rr - 0.82) / 0.18, 0, 1)[..., None] ** 2 * (1 - diffuse[..., None]) * 0.5
-    col = col * (1 - rim) + INDIGO * rim
-    rgba = np.dstack([col.clip(0, 255), inside * 255]).astype(np.uint8)
-    return Image.fromarray(rgba, "RGBA")
-
-
 def drop(w, h):
-    """Капля с кольцами-импульсами и сиянием на прозрачном фоне: левая колонка мастера."""
+    """Знак Sonar с сиянием и надписью на прозрачном фоне: левая колонка мастера."""
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    cx, cy = w / 2, h * 0.43
-    r = w * 0.21
-    # сияние гаснет раньше края картинки, иначе на фоне виден её прямоугольник
-    glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    ImageDraw.Draw(glow).ellipse((cx - r * 1.5, cy - r * 1.5, cx + r * 1.5, cy + r * 1.5), fill=(124, 140, 255, 46))
-    img = Image.alpha_composite(img, glow.filter(ImageFilter.GaussianBlur(w * 0.06)))
-    rings = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    d = ImageDraw.Draw(rings)
-    for k, (rr, a) in enumerate([(1.45, 120), (1.85, 56), (2.25, 22)]):
-        width = max(1, round(w * (0.012 if k == 0 else 0.008)))
-        color = (94, 234, 212, a) if k == 0 else (221, 226, 232, a)
-        d.ellipse((cx - r * rr, cy - r * rr, cx + r * rr, cy + r * rr), outline=color, width=width)
-    img = Image.alpha_composite(img, rings)
-    ball = sphere(round(r * 2))
-    img.alpha_composite(ball, (round(cx - r), round(cy - r)))
-    # волна под каплей
-    wave = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    pts = []
-    base = cy + r * 2.6
-    for i in range(121):
-        t = i / 120
-        x = w * 0.08 + w * 0.84 * t
-        y = base + math.sin(t * math.pi * 2.2 + 0.4) * w * 0.035 * (1 - abs(t - 0.5) * 1.4)
-        pts.append((x, y))
-    ImageDraw.Draw(wave).line(pts, fill=(221, 226, 232, 150), width=max(1, round(w * 0.012)), joint="curve")
-    img = Image.alpha_composite(img, wave)
-    return img
+    k = 4  # рисуем вчетверо крупнее, потом уменьшаем
+    m = round(w * 0.86) * k
+    big = Image.new("RGBA", (w * k, h * k), (0, 0, 0, 0))
+    cy = round(h * k * 0.42)
+    big.alpha_composite(mark(m, "L"), ((w * k - m) // 2, cy - m // 2))
+    word = wordmark(round(w * k * 0.055), (221, 226, 232, 230))
+    big.alpha_composite(word, ((w * k - word.size[0]) // 2, cy + round(m * 0.5) + round(w * k * 0.06)))
+    return Image.alpha_composite(img, big.resize((w, h), Image.LANCZOS))
 
 
 def small(size):
-    """Значок в шапке шагов: капля с одним кольцом."""
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    c = size / 2
-    r = size * 0.27
-    ImageDraw.Draw(img).ellipse(
-        (c - r * 1.6, c - r * 1.6, c + r * 1.6, c + r * 1.6),
-        outline=(94, 234, 212, 150),
-        width=max(1, round(size * 0.035)),
-    )
-    ball = sphere(round(r * 2))
-    img.alpha_composite(ball, (round(c - r), round(c - r)))
-    return img
+    """Значок в шапке шагов: знак без плитки."""
+    return render(size, bg=False, rounded=False, scale=1.0, level="M" if size >= 72 else "S")
 
 
 def main():
