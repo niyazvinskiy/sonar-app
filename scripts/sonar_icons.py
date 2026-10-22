@@ -327,7 +327,8 @@ def banner(w=320, h=180):
 
 def main():
     print("SVG")
-    write("assets/images/logo.svg", svg_doc(svg_mark_body("M", "lg"), id_="lg"))
+    # в приложении знак стоит в круглой плашке 30 px: поля срезаны, кольца почти до края
+    write("assets/images/logo.svg", svg_doc(svg_mark_body("M", "lg"), vb="15 15 70 70", id_="lg"))
     write("assets/images/brand/sonar-mark.svg", svg_doc(svg_mark_body("L")))
     write("assets/images/brand/sonar-mark-small.svg", svg_doc(svg_mark_body("S")))
     write("assets/images/brand/sonar-mark-mono.svg", svg_doc(svg_mark_body("M", mono="currentColor")))
