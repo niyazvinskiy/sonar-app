@@ -8,6 +8,9 @@ APK="$1"
 PKG=app.sonar.vpn
 
 log() { echo "== $(date +%H:%M:%S) $*"; }
+# adb с таймаутом: зависший эмулятор не должен съедать весь запуск
+ADB=$(command -v adb)
+adb() { timeout 40 "$ADB" "$@"; }
 version() { adb shell dumpsys package "$PKG" | grep -m1 versionName | tr -d ' \r' | cut -d= -f2; }
 OUT=/tmp/sonar-test
 mkdir -p "$OUT"
@@ -16,7 +19,10 @@ vpn_up() {
   adb shell ip -o link 2>/dev/null | grep -q -E ': tun[0-9]+' && return 0
   adb shell dumpsys connectivity 2>/dev/null | grep -E 'VPN' | grep -q 'CONNECTED'
 }
-shot() { adb exec-out screencap -p > "$OUT/$1.png" 2>/dev/null; log "снимок экрана: $1.png"; }
+shot() {
+  adb exec-out screencap -p > "$OUT/$1.png" 2>/dev/null
+  log "снимок экрана: $1.png ($(stat -c %s "$OUT/$1.png") байт, adb: $(adb get-state 2>&1 | tr -d '\r'))"
+}
 
 # Нажать на элемент по тексту: Flutter отдаёт подписи в content-desc
 tap_text() {
@@ -51,24 +57,27 @@ PY
 
 finish() {
   [ "$1" = 0 ] || shot "fail"
-  log "журнал Sonar (logcat)"
-  adb logcat -d -s A/SonarUpdate:* A/BoxService:* AndroidRuntime:E PackageInstaller:* 2>/dev/null | tail -60
-  pid=$(adb shell pidof "$PKG" | tr -d '\r')
-  [ -n "$pid" ] && adb logcat -d --pid="$pid" > "$OUT/app.log" 2>/dev/null
-  adb logcat -d > "$OUT/all.log" 2>/dev/null
+  kill "$LOGCAT" 2>/dev/null
+  log "журнал Sonar (logcat с начала запуска)"
+  grep -a -E 'SonarUpdate|BoxService|AndroidRuntime|PackageInstaller|flutter|libbox|sing-box|VpnService|Vpn ' "$OUT/live.log" | tail -80
   adb shell ip addr > "$OUT/ip.txt" 2>/dev/null
   adb shell dumpsys connectivity > "$OUT/connectivity.txt" 2>/dev/null
   if [ "$1" != 0 ]; then
-    log "ошибки приложения"
-    grep -a -E ' E |flutter|Hiddify|hiddify|core|Exception' "$OUT/app.log" 2>/dev/null | tail -60
+    log "ошибки"
+    grep -a -E ' [EF] |FATAL|ANR|Exception|lowmemorykiller|died' "$OUT/live.log" | tail -40
     log "сети"
     grep -a -E 'tun|VPN' "$OUT/ip.txt" "$OUT/connectivity.txt" 2>/dev/null | head -20
   fi
   exit "$1"
 }
 
+# Журнал пишется с самого начала: если эмулятор зависнет, он уже на диске
+"$ADB" logcat -c
+"$ADB" logcat -v time > "$OUT/live.log" 2>&1 &
+LOGCAT=$!
+
 log "ставлю тестовую сборку $APK"
-adb install -r "$APK" || finish 1
+timeout 300 "$ADB" install -r "$APK" || finish 1
 log "версия до: $(version)"
 adb shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS
 # разрешение на VPN, которое человек даёт кнопкой «ОК» при первом подключении
@@ -84,7 +93,11 @@ sleep 20
 shot "after-start"
 
 log "жду, пока поднимется VPN"
-for i in $(seq 1 60); do vpn_up && break; sleep 3; done
+for i in $(seq 1 60); do
+  vpn_up && break
+  [ $((i % 20)) = 0 ] && shot "wait-$i"
+  sleep 3
+done
 if ! vpn_up; then log "VPN не поднялся"; finish 1; fi
 log "VPN работает (tun0 есть)"
 
@@ -94,12 +107,16 @@ adb shell input keyevent KEYCODE_SLEEP
 log "экран погашен, жду обновления (проверка через 3 минуты после подключения)"
 
 before=$(version)
+silent=0
 for i in $(seq 1 150); do
   v=$(version)
   if [ -n "$v" ] && [ "$v" != "$before" ]; then
     log "версия сменилась: $before -> $v"
     break
   fi
+  # пустой ответ бывает и посреди установки, но не десять раз подряд
+  if [ -z "$v" ]; then silent=$((silent + 1)); else silent=0; fi
+  if [ "$silent" -ge 10 ]; then log "эмулятор не отвечает"; finish 1; fi
   sleep 10
 done
 after=$(version)
