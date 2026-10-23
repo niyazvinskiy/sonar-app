@@ -18,7 +18,10 @@ enum ServiceMode {
 
   final String key;
 
-  static ServiceMode get defaultMode => PlatformUtils.isDesktop ? systemProxy : tun;
+  // Sonar: на Windows по умолчанию весь компьютер через VPN, иначе мимо идут игры,
+  // голос Discord и программы в терминале вроде Claude Code. Права администратора
+  // Sonar попросит один раз (задача «Sonar VPN»)
+  static ServiceMode get defaultMode => PlatformUtils.isWindows || !PlatformUtils.isDesktop ? tun : systemProxy;
 
   /// supported service mode based on platform, use this instead of [values] in UI
   static List<ServiceMode> get choices {

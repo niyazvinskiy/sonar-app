@@ -5,12 +5,15 @@ import 'package:hiddify/core/analytics/analytics_controller.dart';
 import 'package:hiddify/core/model/region.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
+import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hiddify/sonar/sonar.dart';
 import 'package:hiddify/sonar/sonar_aurora.dart';
 import 'package:hiddify/sonar/sonar_key.dart';
 import 'package:hiddify/sonar/sonar_sphere.dart';
 import 'package:hiddify/sonar/sonar_style.dart';
 import 'package:hiddify/sonar/sonar_updater.dart';
+import 'package:hiddify/sonar/sonar_windows.dart';
+import 'package:hiddify/utils/platform_utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -39,6 +42,13 @@ class SonarIntro extends HookConsumerWidget {
         // Ключ на месте: главный экран подключится сам, как и обещали на сайте
         ref.read(sonarConnectOnHomeProvider.notifier).state = true;
         await ref.read(Preferences.introCompleted.notifier).update(true);
+        // Windows: весь компьютер через VPN требует права. Просим их сразу, один раз:
+        // Sonar перезапустится с ними и подключится сам, дальше без вопросов
+        if (PlatformUtils.isWindows &&
+            ref.read(ConfigOptions.serviceMode) == ServiceMode.tun &&
+            !await SonarWindows.isAdmin()) {
+          await SonarWindows.restartAsAdmin(ref);
+        }
       } finally {
         if (context.mounted) starting.value = false;
       }
