@@ -58,13 +58,19 @@ function Register-ScheduledTask { param(\$TaskName,\$Action,\$Principal,\$Settin
 function Unregister-ScheduledTask { param(\$TaskName,[switch]\$Confirm,\$ErrorAction) \$global:removed += \$TaskName }
 function Remove-ItemProperty { param(\$LiteralPath,\$Name,\$ErrorAction) }
 function Start-ScheduledTask { param(\$TaskName) \$global:started=\$TaskName }
-& '$quoted'
+function Get-Process { param(\$Name,\$ErrorAction)
+  \$p = [pscustomobject]@{Path=\$exe; MainWindowHandle=1}
+  \$p | Add-Member -MemberType ScriptMethod -Name WaitForInputIdle -Value { param(\$timeout) \$global:waitCalled=\$true; return \$true }
+  return \$p
+}
+. '$quoted'
 \$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 if (\$global:registered.TaskName -ne ('Sonar VPN-' + \$sid)) { throw 'Task is not scoped to user SID' }
 if (\$global:registered.Principal.UserId -ne \$sid) { throw 'Wrong task principal' }
 if ((\$null -ne \$global:registered.Trigger) -ne \$${enabled ? 'true' : 'false'}) { throw 'Startup preference changed' }
 if (\$global:removed.Count -ne 0) { throw 'Removed another user task' }
 if (\$global:started -ne \$global:registered.TaskName) { throw 'Started a different task' }
+if (-not \$global:waitCalled) { throw 'Setup did not wait for the GUI message loop, including hidden windows' }
 ''';
         final result = await Process.run(
           'powershell.exe',

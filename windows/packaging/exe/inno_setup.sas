@@ -100,6 +100,9 @@ Source: "{{SOURCE_DIR}}\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdi
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
+; Migrate existing per-user shortcuts too; the old updater keeps its old path.
+Name: "{userprograms}\{{DISPLAY_NAME}}"; Filename: "{app}\{{EXECUTABLE_NAME}}"; Check: FileExists(ExpandConstant('{userprograms}\{{DISPLAY_NAME}}.lnk'))
+Name: "{userdesktop}\{{DISPLAY_NAME}}"; Filename: "{app}\{{EXECUTABLE_NAME}}"; Check: FileExists(ExpandConstant('{userdesktop}\{{DISPLAY_NAME}}.lnk'))
 Name: "{autoprograms}\\{{DISPLAY_NAME}}"; Filename: "{app}\\{{EXECUTABLE_NAME}}"
 Name: "{autodesktop}\\{{DISPLAY_NAME}}"; Filename: "{app}\\{{EXECUTABLE_NAME}}"; Check: not WizardSilent
 [Run]

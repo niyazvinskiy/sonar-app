@@ -33,3 +33,15 @@ if ($legacy) {
     } catch { Write-Warning 'Legacy Sonar task could not be migrated' }
 }
 Start-ScheduledTask -TaskName $taskName
+# The 1.3 updater launches its old executable as soon as setup exits. Do not
+# return until the protected replacement has claimed the single-instance mutex.
+$deadline = (Get-Date).AddSeconds(30)
+$ready = $false
+while (-not $ready) {
+    foreach ($process in (Get-Process -Name Sonar -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe })) {
+        try { if ($process.WaitForInputIdle(1000)) { $ready = $true; break } } catch { }
+    }
+    if ($ready) { break }
+    if ((Get-Date) -ge $deadline) { throw 'The installed Sonar did not open after setup' }
+    Start-Sleep -Milliseconds 100
+}

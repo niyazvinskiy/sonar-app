@@ -14,6 +14,9 @@ on:
       channel:
         type: string
         default: "dev"
+      windows-only:
+        type: boolean
+        default: false
 
 env:
   IS_GITHUB_ACTIONS: 1
@@ -53,25 +56,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: android-apk
-            os: ubuntu-latest
-            targets: apk
-
-          - platform: windows
-            os: windows-latest
-            aarch: amd64
-            targets: exe,zip
-
-          - platform: linux
-            os: ubuntu-22.04
-            aarch: amd64
-            targets: deb,gz,AppImage
-
-          - platform: macos
-            os: macos-15
-            aarch: universal
-            targets: dmg
+        include: ${{ fromJSON(inputs.windows-only && '[{"platform":"windows","os":"windows-latest","aarch":"amd64","targets":"exe,zip"}]' || '[{"platform":"android-apk","os":"ubuntu-latest","targets":"apk"},{"platform":"windows","os":"windows-latest","aarch":"amd64","targets":"exe,zip"},{"platform":"linux","os":"ubuntu-22.04","aarch":"amd64","targets":"deb,gz,AppImage"},{"platform":"macos","os":"macos-15","aarch":"universal","targets":"dmg"}]') }}
     runs-on: ${{ matrix.os }}
     env:
       ANDROID_SIGNING_KEY: ${{ secrets.ANDROID_SIGNING_KEY }}
@@ -259,13 +244,19 @@ jobs:
           path: ./out/
       - name: Check required files
         run: |
-          for f in Sonar-Windows-Setup-x64.exe Sonar-Android-arm64.apk Sonar-Android-arm7.apk Sonar-Android-universal.apk; do
+          required="Sonar-Windows-Setup-x64.exe"
+          if [ '${{ inputs.windows-only }}' != 'true' ]; then
+            required="$required Sonar-Android-arm64.apk Sonar-Android-arm7.apk Sonar-Android-universal.apk"
+          fi
+          for f in $required; do
             test -f "./out/$f" || { echo "нет $f, выпуск не публикую"; exit 1; }
           done
           test -f ./out/Sonar-MacOS.dmg || echo "::warning::сборки macOS нет, выпуск без неё"
       - name: Release message
         run: |
-          sed 's|RELEASE_TAG|${{ env.TAG_NAME }}|g' ./.github/release_message.md > release.md
+          notes=./.github/release_message.md
+          if [ '${{ inputs.windows-only }}' = 'true' ]; then notes=./.github/release_windows.md; fi
+          sed 's|RELEASE_TAG|${{ env.TAG_NAME }}|g' "$notes" > release.md
           echo "VERSION=${TAG_NAME#sonar-v}" >> $GITHUB_ENV
           ls -la ./out
       # Не prerelease: releases/latest должен указывать на этот выпуск
@@ -275,6 +266,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
+          target_commitish: ${{ github.sha }}
           name: Sonar ${{ env.VERSION }}
           body_path: './release.md'
           files: ./out/*
