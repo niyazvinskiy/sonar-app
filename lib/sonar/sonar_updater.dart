@@ -10,6 +10,8 @@ import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/sonar/sonar.dart';
+import 'package:hiddify/sonar/sonar_connection_recovery.dart';
+import 'package:hiddify/sonar/sonar_update_io.dart';
 import 'package:hiddify/sonar/sonar_windows.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -54,7 +56,11 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
   final _log = appLogger('SonarUpdater');
   Timer? _timer;
   Timer? _retry;
-  bool _autoInstallTried = false;
+  Timer? _startup;
+  bool _checking = false;
+  bool _disposed = false;
+  int _downloadSize = 0;
+  String? _downloadDigest;
 
   @override
   SonarUpdateState build() {
@@ -63,10 +69,12 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
     ref.onDispose(() {
       _timer?.cancel();
       _retry?.cancel();
+      _startup?.cancel();
+      _disposed = true;
     });
-    // Скачанное в прошлый раз ставим сразу при запуске, пока VPN ещё не подключён
-    Future<void>.delayed(const Duration(seconds: 1), _installPending);
-    Future<void>.delayed(const Duration(seconds: 4), check);
+    // Even cached installers are checked against GitHub's size and digest. The
+    // recovery controller is paused only when installation actually starts.
+    _startup = Timer(const Duration(seconds: 1), check);
     // Скачанное обновление при выключенном VPN ставим сразу
     ref.listen(connectionNotifierProvider, (_, next) {
       if (next.valueOrNull is Disconnected && state.phase == SonarUpdatePhase.ready) _autoInstall();
@@ -88,38 +96,17 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
     return null;
   }
 
-  /// Установщик новой версии, скачанный целиком в прошлый запуск: .part в него
-  /// переименовывается только после проверки размера.
-  Future<void> _installPending() async {
-    if (!_silentPlatform || ref.read(connectionNotifierProvider).valueOrNull is Connected) return;
-    try {
-      final current = Version.parse((await PackageInfo.fromPlatform()).version);
-      final dir = Directory('${(await getTemporaryDirectory()).path}${Platform.pathSeparator}sonar-update');
-      if (!dir.existsSync()) return;
-      for (final f in dir.listSync().whereType<File>()) {
-        final name = f.uri.pathSegments.last;
-        if (!name.endsWith('-$_assetName')) continue;
-        final tag = name.substring(0, name.length - _assetName!.length - 1);
-        final v = Version.parse(tag.split('+').first);
-        if (v <= current) continue;
-        _log.info('ставлю скачанный в прошлый раз $tag');
-        state = SonarUpdateState(SonarUpdatePhase.ready, version: tag, file: f);
-        return _autoInstall();
-      }
-    } catch (e) {
-      _log.warning('скачанное обновление не поставилось: $e');
-    }
-  }
-
   void _retryIn(Duration d) {
+    if (_disposed) return;
     _retry?.cancel();
     _retry = Timer(d, check);
   }
 
   Future<void> check() async {
-    if (state.phase == SonarUpdatePhase.downloading || state.phase == SonarUpdatePhase.installing) return;
-    if (state.phase == SonarUpdatePhase.ready) return _scheduleInstall();
+    if (_disposed || _checking || state.phase == SonarUpdatePhase.installing) return;
+    _checking = true;
     try {
+      if (state.phase == SonarUpdatePhase.ready) return await _scheduleInstall();
       final current = Version.parse((await PackageInfo.fromPlatform()).version);
       final release = await _latestRelease();
       if (release == null) return _retryIn(const Duration(hours: 1));
@@ -141,17 +128,26 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
       await dir.create(recursive: true);
       final file = File('${dir.path}${Platform.pathSeparator}$tag-${asset['name']}');
       final size = asset['size'] as int? ?? 0;
-      if (!(await file.exists() && await file.length() == size)) {
+      final digest = asset['digest'] as String?;
+      if (Platform.isWindows && digest == null) throw const FormatException('GitHub не вернул SHA256 установщика');
+      _downloadSize = size;
+      _downloadDigest = digest;
+      if (!await verifySonarUpdate(file, size, digest)) {
+        if (await file.exists()) await file.delete();
         state = SonarUpdateState(SonarUpdatePhase.downloading, version: tag, page: page);
-        await _download(asset['browser_download_url'] as String, file, size, tag, page);
+        await _download(asset['browser_download_url'] as String, file, size, tag, page, digest);
       }
+      if (_disposed) return;
       state = SonarUpdateState(SonarUpdatePhase.ready, version: tag, file: file, page: page);
       await _scheduleInstall();
     } catch (e) {
+      if (_disposed) return;
       _log.error('обновление не скачалось', e);
       state = SonarUpdateState(SonarUpdatePhase.failed, version: state.version, page: state.page, error: '$e');
       // плашка «не скачалось» не навсегда: через час попробуем снова
       _retryIn(const Duration(hours: 1));
+    } finally {
+      _checking = false;
     }
   }
 
@@ -199,43 +195,29 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
   }
 
   /// Несколько попыток, каждая докачивает с места обрыва; через Sonar, пока он подключён.
-  Future<void> _download(String url, File file, int size, String tag, String page) async {
-    final part = File('${file.path}.part');
+  Future<void> _download(String url, File file, int size, String tag, String page, String? digest) async {
     Object? last;
     for (final viaSonar in _routes) {
       final dio = _dio(viaSonar: viaSonar);
       try {
-        final have = await part.exists() ? await part.length() : 0;
-        final resp = await dio.get<ResponseBody>(
-          url,
-          options: Options(
-            responseType: ResponseType.stream,
-            headers: {if (have > 0 && have < size) 'Range': 'bytes=$have-'},
-          ),
-        );
-        final code = resp.statusCode ?? 0;
-        if (code != 200 && code != 206) throw Exception('GitHub ответил $code');
-        final append = have > 0 && code == 206;
-        final sink = part.openWrite(mode: append ? FileMode.append : FileMode.write);
-        var got = append ? have : 0;
-        try {
-          await for (final chunk in resp.data!.stream) {
-            sink.add(chunk);
-            got += chunk.length;
-            if (size > 0) {
+        await downloadSonarUpdate(
+          dio: dio,
+          url: url,
+          file: file,
+          size: size,
+          digest: digest,
+          onProgress: (got) {
+            if (!_disposed) {
               state = SonarUpdateState(SonarUpdatePhase.downloading, version: tag, page: page, progress: got / size);
             }
-          }
-        } finally {
-          await sink.close();
-        }
-        if (size > 0 && await part.length() != size) throw Exception('файл скачался не целиком');
-        await part.rename(file.path);
+          },
+        );
         return;
       } catch (e) {
         last = e;
         _log.warning('загрузка ${viaSonar ? 'через Sonar' : 'напрямую'} не удалась: $e');
         await Future<void>.delayed(const Duration(seconds: 5));
+        if (_disposed) return;
       } finally {
         dio.close();
       }
@@ -254,7 +236,7 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
       for (final f in dir.listSync().whereType<File>()) {
         final name = f.uri.pathSegments.last;
         if (keep != null && name.startsWith('$keep-')) continue;
-        if (name.endsWith('.cmd')) continue;
+        if (name.endsWith('.cmd') || name.contains('.log') || name.endsWith('.ready')) continue;
         await f.delete();
       }
     } catch (_) {}
@@ -267,47 +249,93 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
   /// или игра. Иначе обновление встанет при следующем запуске Sonar, ещё до подключения.
   Future<void> _scheduleInstall() async {
     if (!_silentPlatform) return;
-    if (ref.read(connectionNotifierProvider).valueOrNull is! Connected) return _autoInstall();
+    if (ref.read(connectionNotifierProvider).valueOrNull is Disconnected) return _autoInstall();
   }
 
-  /// Без вопросов ставим только на Windows и Linux, и только один раз за запуск.
+  /// Failed installers get a cooldown, including after the helper restarts the
+  /// old version. A manual retry remains available immediately.
   Future<void> _autoInstall() async {
-    if (_autoInstallTried || !_silentPlatform) return;
-    _autoInstallTried = true;
+    if (!_silentPlatform || state.phase != SonarUpdatePhase.ready) return;
+    final file = state.file;
+    if (Platform.isWindows && file != null) {
+      final failed = File('${file.path}.log.failed');
+      if (await failed.exists() &&
+          DateTime.now().difference(await failed.lastModified()) < const Duration(minutes: 15)) {
+        _retryIn(const Duration(minutes: 15));
+        return;
+      }
+    }
     await install();
   }
 
   Future<void> install() async {
+    if (_disposed || state.phase == SonarUpdatePhase.installing || state.phase == SonarUpdatePhase.downloading) return;
+    final connection = ref.read(connectionNotifierProvider).valueOrNull;
+    if (_silentPlatform && connection is! Connected && connection is! Disconnected) return;
     final file = state.file;
     if (file == null) {
       if (state.page.isNotEmpty) await launchUrl(Uri.parse(state.page), mode: LaunchMode.externalApplication);
       return;
     }
     final version = state.version;
+    final page = state.page;
     state = SonarUpdateState(SonarUpdatePhase.installing, version: version, file: file, page: state.page);
+    var recoveryPaused = false;
     try {
       // Сначала аккуратно выключаем туннель, чтобы установщик мог заменить файлы ядра,
       // а новая версия подключится сама. На Android не надо: система сама перезапустит
       // приложение, а VPN включит BootReceiver
-      if (!Platform.isAndroid && ref.read(connectionNotifierProvider).valueOrNull is Connected) {
-        await SonarWindows.markConnectAfterRestart(ref.read(sharedPreferencesProvider.future));
-        await ref.read(connectionNotifierProvider.notifier).toggleConnection();
-        await Future<void>.delayed(const Duration(milliseconds: 800));
+      if (!await verifySonarUpdate(file, _downloadSize, _downloadDigest)) {
+        throw const FormatException('Установщик повреждён');
+      }
+      if (_silentPlatform) {
+        recoveryPaused = true;
+        await ref.read(sonarConnectionRecoveryProvider.notifier).pauseForUpdate();
+        final deadline = DateTime.now().add(const Duration(seconds: 20));
+        while (ref.read(connectionNotifierProvider).valueOrNull is! Disconnected) {
+          if (DateTime.now().isAfter(deadline)) throw TimeoutException('VPN не завершил отключение');
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        if (ref.read(sonarConnectionRecoveryProvider).wanted) {
+          await SonarWindows.markConnectAfterRestart(ref.read(sharedPreferencesProvider.future));
+        }
       }
 
       if (Platform.isWindows) {
         final exe = Platform.resolvedExecutable;
-        final script = File('${file.parent.path}\\sonar-update.cmd');
-        await script.writeAsString(
-          [
-            '@echo off',
-            'ping -n 3 127.0.0.1 >nul',
-            '"${file.path}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS',
-            'start "" "$exe"',
-            'del "%~f0"',
-          ].join('\r\n'),
+        final currentDirectory = File(exe).parent.path;
+        final programFiles =
+            Platform.environment['ProgramW6432'] ?? Platform.environment['ProgramFiles'] ?? r'C:\Program Files';
+        final protected = currentDirectory.toLowerCase().startsWith('${programFiles.toLowerCase()}\\');
+        final installDirectory = protected ? currentDirectory : '$programFiles\\Sonar';
+        if (!await SonarWindows.isAdmin()) {
+          throw StateError('Для обновления нужно запустить Sonar с правами администратора');
+        }
+        final digest = _downloadDigest;
+        if (digest == null) throw const FormatException('Не указана SHA256 установщика');
+        final installer = await stageSonarWindowsUpdate(
+          source: file,
+          protectedDirectory: Directory('$installDirectory\\.updates'),
+          size: _downloadSize,
+          digest: digest,
         );
-        await Process.start('cmd.exe', ['/c', script.path], mode: ProcessStartMode.detached);
+        final acknowledgement = File('${file.path}.ready');
+        if (await acknowledgement.exists()) await acknowledgement.delete();
+        final script = windowsUpdateScript(
+          installer: installer.path,
+          executable: exe,
+          oldProcessId: pid,
+          installationDirectory: installDirectory,
+          taskName: await SonarWindows.taskName(),
+          logPath: '${file.path}.log',
+          acknowledgementPath: acknowledgement.path,
+        );
+        await Process.start('powershell.exe', windowsPowerShellArguments(script), mode: ProcessStartMode.detached);
+        final deadline = DateTime.now().add(const Duration(seconds: 10));
+        while (!await acknowledgement.exists()) {
+          if (DateTime.now().isAfter(deadline)) throw TimeoutException('Помощник установки не запустился');
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
         exit(0);
       } else if (Platform.isLinux) {
         final target = Platform.environment['APPIMAGE'];
@@ -331,8 +359,10 @@ class SonarUpdater extends Notifier<SonarUpdateState> {
         state = SonarUpdateState(SonarUpdatePhase.ready, version: version, file: file, page: state.page);
       }
     } catch (e) {
+      if (recoveryPaused) ref.read(sonarConnectionRecoveryProvider.notifier).resumeAfterUpdateFailure();
       _log.error('обновление не поставилось', e);
-      state = SonarUpdateState(SonarUpdatePhase.failed, version: version, file: file, page: state.page, error: '$e');
+      state = SonarUpdateState(SonarUpdatePhase.failed, version: version, file: file, page: page, error: '$e');
+      _retryIn(const Duration(minutes: 15));
     }
   }
 }
@@ -353,7 +383,12 @@ class SonarUpdateBanner extends ConsumerWidget {
         Platform.isAndroid ? 'Установить' : (Platform.isMacOS ? 'Открыть' : 'Обновить'),
       ),
       SonarUpdatePhase.installing => ('Обновляю Sonar до ${u.version}…', null),
-      SonarUpdatePhase.failed => ('Sonar ${u.version} пока не скачался, попробую ещё', 'Вручную'),
+      SonarUpdatePhase.failed => (
+        u.file == null
+            ? 'Sonar ${u.version} пока не скачался, попробую ещё'
+            : 'Sonar ${u.version} не установился, попробую ещё',
+        u.file == null ? 'Вручную' : 'Повторить',
+      ),
       SonarUpdatePhase.idle => ('', null),
     };
     if (text.isEmpty) return const SizedBox(height: 12);
@@ -372,7 +407,7 @@ class SonarUpdateBanner extends ConsumerWidget {
           ),
           if (action != null)
             TextButton(
-              onPressed: u.phase == SonarUpdatePhase.failed
+              onPressed: u.phase == SonarUpdatePhase.failed && u.file == null
                   ? () => launchUrl(Uri.parse(u.page), mode: LaunchMode.externalApplication)
                   : () => ref.read(sonarUpdaterProvider.notifier).install(),
               child: Text(action),

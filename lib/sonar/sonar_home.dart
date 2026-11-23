@@ -9,6 +9,7 @@ import 'package:hiddify/features/route_rules/notifier/rules_notifier.dart';
 import 'package:hiddify/features/stats/notifier/stats_notifier.dart';
 import 'package:hiddify/sonar/sonar_channel_guard.dart';
 import 'package:hiddify/sonar/sonar_channels.dart';
+import 'package:hiddify/sonar/sonar_connection_recovery.dart';
 import 'package:hiddify/sonar/sonar_home_view.dart';
 import 'package:hiddify/sonar/sonar_key.dart';
 import 'package:hiddify/sonar/sonar_sphere.dart';
@@ -39,6 +40,7 @@ class SonarHome extends HookConsumerWidget {
     final hasProfile = ref.watch(hasAnyProfileProvider).valueOrNull ?? false;
     final smart = ref.watch(rulesNotifierProvider).sonarSmart;
     final connected = status.valueOrNull is Connected;
+    final recovery = ref.watch(sonarConnectionRecoveryProvider);
     final stats = connected ? ref.watch(statsNotifierProvider).valueOrNull : null;
 
     // С какого момента в сети: для счётчика времени
@@ -49,35 +51,35 @@ class SonarHome extends HookConsumerWidget {
       return null;
     }, [connected]);
 
-    // Сразу после «Начать»: подключаемся, как только ядро сообщило, что готово
-    void autoConnect(AsyncValue<ConnectionStatus> s) {
-      if (!ref.read(sonarConnectOnHomeProvider) || s.valueOrNull is! Disconnected) return;
-      ref.read(sonarConnectOnHomeProvider.notifier).state = false;
-      ref.read(connectionNotifierProvider.notifier).toggleConnection();
-    }
-
     // Режим VPN без прав (например, Sonar запустился сам при входе в Windows): задача с
     // правами уже есть, поэтому перезапускаемся через неё сами, без вопросов, один раз
     final elevating = useRef(false);
     ref.listen(connectionNotifierProvider, (_, next) async {
-      autoConnect(next);
-      if (!elevating.value && _needsAdmin(next) && !await SonarWindows.isAdmin() && await SonarWindows.hasTask()) {
+      if (!elevating.value &&
+          recovery.wanted &&
+          !recovery.paused &&
+          _needsAdmin(next) &&
+          !await SonarWindows.isAdmin() &&
+          await SonarWindows.hasTask()) {
+        if (!context.mounted ||
+            !ref.read(sonarConnectionRecoveryProvider).wanted ||
+            ref.read(sonarConnectionRecoveryProvider).paused) {
+          return;
+        }
         elevating.value = true;
         await SonarWindows.restartAsAdmin(ref);
       }
     });
     useEffect(() {
       Future.microtask(() async {
-        // перезапустились ради прав или обновления: подключаемся сами. Если Sonar
-        // был подключён, когда его закрыли, при запуске его подключит сам Hiddify
-        // (started_by_user), второй раз здесь не нажимаем
-        if (await SonarWindows.takeConnectAfterRestart(ref)) ref.read(sonarConnectOnHomeProvider.notifier).state = true;
-        autoConnect(ref.read(connectionNotifierProvider));
+        await SonarWindows.ensureAutomaticStartup(ref);
+        if (!context.mounted) return;
       });
       return null;
     }, const []);
 
     final sphere = switch (status) {
+      _ when recovery.wanted && recovery.retryScheduled => SphereState.connecting,
       _ when keyStatus is SonarKeyIssuing => SphereState.connecting,
       _ when keyStatus is SonarKeyFailed => SphereState.failed,
       AsyncError() => SphereState.failed,
@@ -96,6 +98,7 @@ class SonarHome extends HookConsumerWidget {
     final picked = sonarChannelLabel(proxy?.groupSelectedTagDisplay ?? '');
     final channel = guard.auto && picked != 'Лучший канал' ? 'Авто · $picked' : picked;
     final title = switch (sphere) {
+      _ when recovery.wanted && recovery.retryScheduled => 'Восстанавливаю соединение…',
       _ when keyStatus is SonarKeyIssuing => 'Получаю личный ключ…',
       _ when keyStatus is SonarKeyFailed => 'Ключ не получен',
       SphereState.connected => 'Всё открыто',
@@ -106,10 +109,14 @@ class SonarHome extends HookConsumerWidget {
       SphereState.idle => hasProfile ? 'Коснитесь капли' : 'Коснитесь капли, чтобы начать',
     };
     final subtitle = switch (sphere) {
+      _ when recovery.wanted && recovery.retryScheduled =>
+        _hasTunnelFailure(status)
+            ? _failure(status)
+            : 'Повторяю попытки автоматически. Коснитесь капли, чтобы остановить.',
       _ when keyStatus is SonarKeyFailed => keyStatus.message,
       SphereState.connected when ConnectionConst.isValidDelay(delay) =>
         smart ? '$channel · через Sonar только заблокированное' : '$channel · через Sonar всё, кроме РФ',
-      SphereState.connected => 'Сервер не отвечает на проверку, пробую другой канал',
+      SphereState.connected => 'Канал отвечает медленно. Проверяю связь, сохраняя соединение.',
       SphereState.failed => _failure(status),
       SphereState.idle =>
         smart ? 'Умный режим: через Sonar только заблокированное' : 'Через Sonar всё, кроме российских сайтов',
@@ -117,13 +124,9 @@ class SonarHome extends HookConsumerWidget {
     };
 
     Future<void> onTap() async {
-      final notifier = ref.read(connectionNotifierProvider.notifier);
-      if (connected) return notifier.toggleConnection();
-      if (status.valueOrNull is! Disconnected && status is! AsyncError) return;
-      if (!await ref.read(sonarKeyProvider.notifier).ensure()) return;
-      // Подписка только что добавлена: даём ядру подхватить её
-      if (!hasProfile) await Future<void>.delayed(const Duration(milliseconds: 600));
-      await notifier.toggleConnection();
+      final controller = ref.read(sonarConnectionRecoveryProvider.notifier);
+      if (recovery.wanted || connected || status.valueOrNull is Connecting) return controller.stop();
+      await controller.start();
     }
 
     return SonarHomeView(
@@ -139,9 +142,8 @@ class SonarHome extends HookConsumerWidget {
         up: stats?.uplink.toInt() ?? 0,
         downTotal: stats?.downlinkTotal.toInt() ?? 0,
         upTotal: stats?.uplinkTotal.toInt() ?? 0,
-        // во время подключения капля не реагирует, а в сети отключает
-        tappable: sphere != SphereState.connecting || connected,
-        canRetryKey: keyStatus is SonarKeyFailed || needsAdmin,
+        tappable: recovery.wanted || sphere != SphereState.connecting || connected,
+        canRetryKey: (keyStatus is SonarKeyFailed && !recovery.wanted) || needsAdmin,
         retryLabel: needsAdmin ? 'Перезапустить с правами администратора' : 'Попробовать ещё раз',
         channelEnabled: hasProfile,
       ),
@@ -168,6 +170,17 @@ class SonarHome extends HookConsumerWidget {
     if (_needsAdmin(status)) {
       return 'Для режима VPN Windows нужны права администратора. Sonar перезапустится и попросит их.';
     }
-    return 'Коснитесь капли ещё раз. Если не помогает, выберите канал «Игры» или «Запасной».';
+    if (_hasTunnelFailure(status)) {
+      return 'Windows не смогла создать VPN-адаптер. Закройте другие VPN и перезагрузите компьютер; '
+          'временно можно выключить режим VPN в настройках Sonar.';
+    }
+    return 'Соединение прервано. Проверьте доступ к сети; Sonar повторит попытку, пока вы не остановите подключение.';
+  }
+
+  static bool _hasTunnelFailure(AsyncValue<ConnectionStatus> status) {
+    final text = _failureText(status).toLowerCase();
+    return text.contains('create adapter') ||
+        text.contains('configure tun interface') ||
+        text.contains('open existing adapter');
   }
 }

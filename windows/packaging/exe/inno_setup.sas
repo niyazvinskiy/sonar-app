@@ -20,6 +20,7 @@ AppPublisherURL={{PUBLISHER_URL}}
 AppSupportURL={{PUBLISHER_URL}}
 AppUpdatesURL={{PUBLISHER_URL}}
 DefaultDirName={{INSTALL_DIR_NAME}}
+UsePreviousAppDir=no
 DisableProgramGroupPage=yes
 OutputDir=.
 OutputBaseFilename={{OUTPUT_BASE_FILENAME}}
@@ -77,12 +78,12 @@ CloseApplications=force
 
 [Messages]
 russian.WelcomeLabel1=Sonar
-russian.WelcomeLabel2=Всё открыто. Пинг на месте.%n%nYouTube, Discord, Instagram и нейросети откроются через Sonar, а игры и российские сайты пойдут напрямую, без потери скорости.%n%nУстановка займёт меньше минуты, права администратора не нужны.
+russian.WelcomeLabel2=Всё открыто. Пинг на месте.%n%nSonar подключается при входе в Windows и восстанавливает связь после обрывов.%n%nПодтвердите установку один раз. Дальше VPN запускается без повторных запросов прав.
 russian.FinishedHeadingLabel=Sonar установлен
 russian.FinishedLabelNoIcons=Запустите Sonar и нажмите «Начать»: личный ключ создастся сам. Дальше приложение обновляется без вашего участия.
 russian.FinishedLabel=Запустите Sonar и нажмите «Начать»: личный ключ создастся сам. Дальше приложение обновляется без вашего участия.
 english.WelcomeLabel1=Sonar
-english.WelcomeLabel2=Everything opens. Your ping stays put.%n%nYouTube, Discord, Instagram and AI services go through Sonar, while games and Russian sites go direct at full speed.%n%nSetup takes less than a minute and needs no administrator rights.
+english.WelcomeLabel2=Everything opens. Your ping stays put.%n%nSonar connects when you sign in to Windows and recovers after interruptions.%n%nApprove setup once. Future VPN starts need no elevation prompts.
 english.FinishedHeadingLabel=Sonar is installed
 english.FinishedLabelNoIcons=Open Sonar and press Start: your personal key is created automatically. From then on the app updates itself.
 english.FinishedLabel=Open Sonar and press Start: your personal key is created automatically. From then on the app updates itself.
@@ -95,19 +96,23 @@ english.ClickNext=Click Install to begin.
 ; Автозапуск включается в настройках Sonar.
 [Files]
 Source: "{{SOURCE_DIR}}\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+#emit "Source: " + SonarArt + "..\sonar-startup.ps1; DestDir: " + "{app}; Flags: ignoreversion"
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
 Name: "{autoprograms}\\{{DISPLAY_NAME}}"; Filename: "{app}\\{{EXECUTABLE_NAME}}"
 Name: "{autodesktop}\\{{DISPLAY_NAME}}"; Filename: "{app}\\{{EXECUTABLE_NAME}}"; Check: not WizardSilent
 [Run]
-Filename: "{app}\\{{EXECUTABLE_NAME}}"; Description: "{cm:LaunchProgram,{{DISPLAY_NAME}}}"; Flags: {% if PRIVILEGES_REQUIRED == 'admin' %}runascurrentuser{% endif %} nowait postinstall skipifsilent
+Filename: "{sys}\\WindowsPowerShell\\v1.0\\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\sonar-startup.ps1"""; Flags: runhidden waituntilterminated
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{userappdata}\Sonar"
 ; ярлыки от прошлых установок, которые новый журнал удаления не знает
 Type: files; Name: "{autodesktop}\{{DISPLAY_NAME}}.lnk"
 Type: files; Name: "{userstartup}\{{DISPLAY_NAME}}.lnk"
+
+[UninstallRun]
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\sonar-startup.ps1"" -Uninstall"; Flags: runhidden waituntilterminated
 
 [Code]
 procedure CurPageChanged(CurPageID: Integer);

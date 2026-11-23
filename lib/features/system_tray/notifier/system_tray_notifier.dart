@@ -11,6 +11,7 @@ import 'package:hiddify/features/window/notifier/window_notifier.dart';
 import 'package:hiddify/gen/assets.gen.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/singbox/model/singbox_config_enum.dart';
+import 'package:hiddify/sonar/sonar_connection_recovery.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tray_manager/tray_manager.dart';
@@ -61,13 +62,15 @@ class SystemTrayNotifier extends _$SystemTrayNotifier with TrayListener, AppLogg
       MenuItem.separator(),
       MenuItem(
         key: 'connection',
-        label: switch (connection) {
-          Disconnected() => t.connection.connect,
-          Connecting() => t.connection.connecting,
-          Connected() => t.connection.disconnect,
-          Disconnecting() => t.connection.disconnecting,
-        },
-        disabled: connection.isSwitching,
+        label: Platform.isWindows && ref.watch(sonarConnectionRecoveryProvider).wanted
+            ? 'Остановить подключение'
+            : switch (connection) {
+                Disconnected() => t.connection.connect,
+                Connecting() => t.connection.connecting,
+                Connected() => t.connection.disconnect,
+                Disconnecting() => t.connection.disconnecting,
+              },
+        disabled: !Platform.isWindows && connection.isSwitching,
       ),
       MenuItem.submenu(
         label: t.pages.settings.inbound.serviceMode,
@@ -133,7 +136,17 @@ class SystemTrayNotifier extends _$SystemTrayNotifier with TrayListener, AppLogg
     if (menuItem.key == 'dashboard') {
       await ref.read(windowNotifierProvider.notifier).show();
     } else if (menuItem.key == 'connection') {
-      await ref.read(connectionNotifierProvider.notifier).toggleConnection();
+      if (Platform.isWindows) {
+        final recovery = ref.read(sonarConnectionRecoveryProvider);
+        final controller = ref.read(sonarConnectionRecoveryProvider.notifier);
+        if (recovery.wanted || ref.read(connectionNotifierProvider).valueOrNull is Connected) {
+          await controller.stop();
+        } else {
+          await controller.start();
+        }
+      } else {
+        await ref.read(connectionNotifierProvider.notifier).toggleConnection();
+      }
     } else if (menuItem.key == 'quit') {
       await ref.read(windowNotifierProvider.notifier).exit();
     } else {

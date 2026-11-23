@@ -29,6 +29,7 @@ import 'package:hiddify/features/system_tray/notifier/system_tray_notifier.dart'
 import 'package:hiddify/features/window/notifier/window_notifier.dart';
 import 'package:hiddify/hiddifycore/hiddify_core_service_provider.dart';
 import 'package:hiddify/riverpod_observer.dart';
+import 'package:hiddify/sonar/sonar_connection_recovery.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -125,7 +126,13 @@ Future<void> lazyBootstrap(WidgetsBinding widgetsBinding, Environment env) async
     if (PlatformUtils.isDesktop) {
       await _safeInit(
         "restore previous connection",
-        () => container.read(connectionNotifierProvider.notifier).restoreConnectionOnStartup(),
+        () async {
+          if (PlatformUtils.isWindows) {
+            container.read(sonarConnectionRecoveryProvider);
+          } else {
+            await container.read(connectionNotifierProvider.notifier).restoreConnectionOnStartup();
+          }
+        },
         timeout: 5000,
       );
       await _safeInit("system tray", () => container.read(systemTrayNotifierProvider.future), timeout: 1000);

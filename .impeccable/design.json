@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-20T11:20:58Z",
+  "title": "Design System: Sonar",
+  "extensions": {
+    "colorMeta": {
+      "night-0": {"role": "neutral", "displayName": "Night water ground"},
+      "paper": {"role": "primary", "displayName": "Pearl action and text"},
+      "aqua": {"role": "secondary", "displayName": "Connected water and native selection"},
+      "failure-primary": {"role": "tertiary", "displayName": "Failure rose"}
+    },
+    "typographyMeta": {
+      "title": {"displayName": "Connection title", "purpose": "Jost 30 base; home overrides 34 wide / 28 narrow."},
+      "value": {"displayName": "Measured value", "purpose": "Tabular figures for session telemetry."}
+    },
+    "shadows": [],
+    "motion": [
+      {"name": "ambient-loop", "value": "120s", "purpose": "Slow native aurora repaint; stopped in calm mode or when disableAnimations is true."},
+      {"name": "mood-transition", "value": "700ms easeInOutCubic", "purpose": "SonarMood transitions in SonarAurora; duration zero under reduced motion."}
+    ],
+    "breakpoints": [
+      {"name": "wide-home", "value": "760px"},
+      {"name": "compact-narrow-height", "value": "700px"}
+    ],
+    "nativeImplementation": {
+      "units": "Flutter logical pixels; HTML/CSS component snippets are documentation translations, not production widgets.",
+      "authority": ["lib/sonar/sonar_style.dart", "lib/sonar/sonar_home_view.dart", "lib/sonar/sonar_settings.dart", "lib/core/theme/app_theme.dart"],
+      "signaturePainter": "lib/sonar/sonar_sphere.dart",
+      "evidence": "Seven .impeccable/review PNGs are synthetic Flutter widget-test fixtures, not live installed-network captures.",
+      "ramps": "No normative tonal ramps are defined by these source tokens; metadata does not invent a second palette."
+    }
+  },
+  "components": [
+    {
+      "name": "Connection action", "kind": "button", "refersTo": "connection-action",
+      "description": "Translation of the native FilledButton; the separate visible primary action duplicates the drop action.",
+      "html": "<button class=\"ds-connect\"><svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 2v10M6.2 5.8a9 9 0 1 0 11.6 0\"/></svg>Подключить</button>",
+      "css": ".ds-connect{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#F6F7F9;color:#070B16;border:0;border-radius:12px;padding:15px 24px;font:500 16px Jost,sans-serif;min-width:190px;max-width:320px;cursor:pointer}.ds-connect:hover{background:#DDE2E8}.ds-connect:focus-visible{outline:2px solid #5EEAD4;outline-offset:3px}.ds-connect:active{background:#AEB6C2}.ds-connect:disabled{background:#26344B;color:#DDE2E8;cursor:default}"
+    },
+    {
+      "name": "Route selection", "kind": "custom", "refersTo": "route-control",
+      "description": "Two native choices with selected semantics and equal widths; routing explanation remains outside.",
+      "html": "<div class=\"ds-route\"><button aria-pressed=\"true\">Умный режим</button><button aria-pressed=\"false\">Всё через Sonar</button></div>",
+      "css": ".ds-route{display:flex;gap:4px;padding:4px;background:#101B2B;border:1px solid #DDE2E81F;border-radius:13px}.ds-route button{flex:1;min-width:0;padding:12px 10px;border:0;border-radius:9px;background:transparent;color:#DDE2E8;font:500 14px Jost,sans-serif;cursor:pointer}.ds-route button[aria-pressed=true]{background:#F6F7F9;color:#070B16}.ds-route button:hover{box-shadow:inset 0 0 0 1px #AEB6C2}.ds-route button:focus-visible{outline:2px solid #5EEAD4;outline-offset:1px}.ds-route button:active{opacity:.8}"
+    },
+    {
+      "name": "Channel row", "kind": "button", "refersTo": "channel-row",
+      "description": "Compact channel destination row, replacing decorative stacked cards.",
+      "html": "<button class=\"ds-channel\"><span><small>Канал</small><strong>Лучший канал</strong></span><svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"m9 6 6 6-6 6\"/></svg></button>",
+      "css": ".ds-channel{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:16px;background:#101B2B;color:#F6F7F9;border:0;border-radius:12px;text-align:left;font-family:Jost,sans-serif;cursor:pointer}.ds-channel small{display:block;color:#AEB6C2;font-size:13px;line-height:1.35}.ds-channel strong{display:block;margin-top:2px;font-size:16px;font-weight:500}.ds-channel:hover{background:#24344E}.ds-channel:focus-visible{outline:2px solid #5EEAD4;outline-offset:2px}.ds-channel:active{background:#1E2D4A}"
+    },
+    {
+      "name": "Settings group", "kind": "card", "refersTo": "settings-group",
+      "description": "Tonal settings grouping; native ListTile and Switch remain the actual widgets.",
+      "html": "<div class=\"ds-settings\"><label><span><strong>Запускать вместе с Windows</strong><small>После входа в вашу учётную запись</small></span><input type=\"checkbox\" checked aria-label=\"Запускать вместе с Windows\"></label></div>",
+      "css": ".ds-settings{background:#101B2B;border:1px solid #DDE2E81F;border-radius:14px;overflow:hidden;color:#F6F7F9;font-family:Jost,sans-serif}.ds-settings label{display:flex;align-items:center;gap:14px;padding:10px 14px 10px 18px}.ds-settings label span{flex:1;min-width:0}.ds-settings strong{font-size:16px;font-weight:500}.ds-settings small{display:block;color:#AEB6C2;font-size:13px;line-height:1.35}.ds-settings input{accent-color:#5EEAD4;width:24px;height:24px}.ds-settings label:hover{background:#24344E}.ds-settings input:focus-visible{outline:2px solid #5EEAD4;outline-offset:3px}"
+    },
+    {
+      "name": "Native text field", "kind": "input",
+      "description": "Theme input translation; 12px corners and Aqua focus outline from AppTheme.",
+      "html": "<input class=\"ds-input\" aria-label=\"Название\" placeholder=\"Название\">",
+      "css": ".ds-input{padding:14px 16px;background:#FFFFFF0A;color:#F6F7F9;border:1px solid #DDE2E824;border-radius:12px;font:400 15px Jost,sans-serif}.ds-input::placeholder{color:#AEB6C2}.ds-input:hover{border-color:#AEB6C2}.ds-input:focus-visible{outline:1.4px solid #5EEAD4;outline-offset:-1px}.ds-input:disabled{opacity:.5}"
+    },
+    {
+      "name": "Session ledger", "kind": "custom",
+      "description": "Open factual measurements; em dash is deliberate unavailable content.",
+      "html": "<dl class=\"ds-ledger\"><div><dt>Время в сети</dt><dd>—</dd></div><div><dt>Задержка</dt><dd>—</dd></div></dl>",
+      "css": ".ds-ledger{margin:0;border-top:1px solid #314054;border-bottom:1px solid #314054;font-family:Jost,sans-serif}.ds-ledger div{display:flex;align-items:flex-start;gap:12px;padding:11px 0}.ds-ledger dt{flex:1;color:#DDE2E8;font-size:15px;line-height:1.5}.ds-ledger dd{margin:0;color:#F6F7F9;text-align:right;font-size:17px;font-weight:500;font-variant-numeric:tabular-nums}"
+    }
+  ],
+  "narrative": {
+    "northStar": "A quiet connection desk",
+    "overview": "Night-water grounds, pearl text and Jost preserve Sonar's identity. Explicit native controls let connection state and the next action lead. The signature drop carries living connection color; controls use solid tonal surfaces and fine boundaries. Settings group native rows, while measurements form an open ledger.",
+    "keyCharacteristics": ["Night water and pearl", "Jost with tabular measurements", "Signature native painted drop", "Responsive connection stage and route rail", "Visible automatic-work controls"],
+    "rules": [
+      {"name": "State is also text", "body": "Connection state has an explicit title and action rather than relying only on drop color.", "section": "colors"},
+      {"name": "Tonal controls", "body": "Use solid surfaces and thin boundaries; the legacy sonarGlass helper does not imply blur.", "section": "elevation"},
+      {"name": "Scale and scroll", "body": "Respect text scaling and keep essential controls reachable through vertical scrolling.", "section": "typography"}
+    ],
+    "dos": ["Keep the dark identity, Jost and pearl drop.", "Preserve native keyboard and state semantics.", "Label synthetic evidence as synthetic."],
+    "donts": ["Invent unavailable measurements or locations.", "Reintroduce ornamental glass-card stacks.", "Defeat reduced motion or use color as the only state signal."]
+  }
+}

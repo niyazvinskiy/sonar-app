@@ -30,6 +30,7 @@ import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/sonar/sonar.dart';
 import 'package:hiddify/sonar/sonar_channel_guard.dart';
 import 'package:hiddify/sonar/sonar_channels.dart';
+import 'package:hiddify/sonar/sonar_connection_recovery.dart';
 import 'package:hiddify/sonar/sonar_home_view.dart';
 import 'package:hiddify/sonar/sonar_intro.dart';
 import 'package:hiddify/sonar/sonar_settings.dart';
@@ -59,10 +60,22 @@ Future<void> _loadFonts() async {
 // та же тема, что в приложении
 ThemeData _theme() => AppTheme(AppThemeMode.dark, 'Jost').darkTheme(null);
 
-Widget _frame(Widget child) => MaterialApp(
+Widget _frame(Widget child, {double scale = 1}) => MaterialApp(
   debugShowCheckedModeBanner: false,
   theme: _theme(),
-  home: Scaffold(backgroundColor: const Color(Sonar.night0), body: child),
+  home: MediaQuery(
+    data: MediaQueryData(disableAnimations: true, textScaler: TextScaler.linear(scale)),
+    child: Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('SONAR', style: TextStyle(fontFamily: 'Jost', fontSize: 14, letterSpacing: 3.2)),
+        actions: [IconButton(onPressed: () {}, tooltip: 'Настройки', icon: const Icon(Icons.tune_rounded))],
+      ),
+      backgroundColor: const Color(Sonar.night0),
+      body: child,
+    ),
+  ),
 );
 
 class _NoUpdates extends SonarUpdater {
@@ -85,6 +98,11 @@ class _Analytics extends AnalyticsController {
   Future<bool> build() async => false;
 }
 
+class _Recovery extends SonarConnectionRecovery {
+  @override
+  SonarRecoveryState build() => const SonarRecoveryState(autoConnect: true);
+}
+
 class _Directories extends AppDirectories {
   @override
   Future<Directories> build() async {
@@ -98,8 +116,8 @@ Future<List<Override>> _app() async {
   PackageInfo.setMockInitialValues(
     appName: 'Sonar',
     packageName: 'app.sonar.vpn',
-    version: '1.2.0',
-    buildNumber: '12000',
+    version: '1.4.0',
+    buildNumber: '14000',
     buildSignature: '',
   );
   final ru = await AppLocale.ru.build();
@@ -109,6 +127,7 @@ Future<List<Override>> _app() async {
     translationsProvider.overrideWith((ref) => ru),
     sharedPreferencesProvider.overrideWith((ref) => prefs),
     autoStartNotifierProvider.overrideWith(_AutoStart.new),
+    sonarConnectionRecoveryProvider.overrideWith(_Recovery.new),
     analyticsControllerProvider.overrideWith(_Analytics.new),
     appDirectoriesProvider.overrideWith(_Directories.new),
   ];
@@ -198,7 +217,11 @@ void main() {
 
   for (final e in states.entries) {
     testWidgets('экран: ${e.key}', skip: !_enabled, (tester) async {
-      await shot(tester, 'home-${e.key}', _frame(SonarHomeView(data: e.value, onChannel: () {}, onMode: (_) {})));
+      await shot(
+        tester,
+        'home-${e.key}',
+        _frame(SonarHomeView(data: e.value, onTap: () {}, onChannel: () {}, onMode: (_) {})),
+      );
     });
   }
 
@@ -206,7 +229,7 @@ void main() {
     await shot(
       tester,
       'phone-connected',
-      _frame(SonarHomeView(data: states['connected']!, onChannel: () {})),
+      _frame(SonarHomeView(data: states['connected']!, onTap: () {}, onChannel: () {}, onMode: (_) {})),
       size: const Size(390, 844),
     );
   });
@@ -215,8 +238,26 @@ void main() {
     await shot(
       tester,
       'small-connected',
-      _frame(SonarHomeView(data: states['connected']!, onChannel: () {})),
+      _frame(SonarHomeView(data: states['connected']!, onTap: () {}, onChannel: () {}, onMode: (_) {})),
       size: const Size(380, 620),
+    );
+  });
+
+  testWidgets('экран: desktop, в сети', skip: !_enabled, (tester) async {
+    await shot(
+      tester,
+      'desktop-connected',
+      _frame(SonarHomeView(data: states['connected']!, onTap: () {}, onChannel: () {}, onMode: (_) {})),
+      size: const Size(1080, 760),
+    );
+  });
+
+  testWidgets('экран: увеличенный текст', skip: !_enabled, (tester) async {
+    await shot(
+      tester,
+      'large-text-connected',
+      _frame(SonarHomeView(data: states['connected']!, onTap: () {}, onChannel: () {}, onMode: (_) {}), scale: 1.8),
+      size: const Size(380, 760),
     );
   });
 

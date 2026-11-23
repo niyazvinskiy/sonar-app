@@ -27,6 +27,8 @@ class SonarSphere extends HookWidget {
     final splash = useAnimationController(duration: const Duration(milliseconds: 900));
     useEffect(() {
       if (still) {
+        clock.stop();
+        splash.stop();
         clock.value = .3;
       } else {
         clock.repeat();
@@ -38,7 +40,7 @@ class SonarSphere extends HookWidget {
 
     void tap() {
       HapticFeedback.mediumImpact();
-      splash.forward(from: 0);
+      if (!still) splash.forward(from: 0);
       onTap?.call();
     }
 
@@ -59,12 +61,12 @@ class SonarSphere extends HookWidget {
           onTap: onTap == null ? null : tap,
           child: AnimatedScale(
             scale: scale,
-            duration: Duration(milliseconds: pressed.value ? 120 : 600),
+            duration: still ? Duration.zero : Duration(milliseconds: pressed.value ? 120 : 250),
             curve: pressed.value ? Curves.easeOut : const Cubic(.16, 1, .3, 1),
             child: RepaintBoundary(
               child: TweenAnimationBuilder<SonarMood>(
                 tween: SonarMoodTween(end: mood ?? SonarMood.of(state)),
-                duration: const Duration(milliseconds: 1100),
+                duration: still ? Duration.zero : const Duration(milliseconds: 700),
                 curve: Curves.easeInOutCubic,
                 builder: (context, m, _) => CustomPaint(
                   size: Size.square(size),

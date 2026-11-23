@@ -14,6 +14,7 @@ import 'package:hiddify/sonar/sonar_aurora.dart';
 import 'package:hiddify/sonar/sonar_settings.dart';
 import 'package:hiddify/sonar/sonar_style.dart';
 import 'package:hiddify/sonar/sonar_windows.dart';
+import 'package:hiddify/sonar/sonar_windows_settings.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -166,6 +167,7 @@ class SettingsPage extends HookConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
                 children: [
                   const SonarAppCard(),
+                  if (Platform.isWindows) const SonarWindowsSettings(),
                   const SonarSettingsLabel('Основное'),
                   SonarSettingsGroup(
                     children: [
@@ -175,7 +177,7 @@ class SettingsPage extends HookConsumerWidget {
                           icon: Icons.shield_moon_rounded,
                           tint: const Color(0xFF5EEAD4),
                           title: 'Весь компьютер через VPN',
-                          subtitle: 'Игры и голос в Discord тоже. Попросит права администратора',
+                          subtitle: 'Захватывает игры и голос в Discord. Права настраиваются один раз',
                           trailing: Switch(
                             value: ref.watch(ConfigOptions.serviceMode) == ServiceMode.tun,
                             onChanged: (on) => SonarWindows.setVpn(ref, on),

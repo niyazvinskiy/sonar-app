@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -72,353 +71,312 @@ class SonarHomeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mood = SonarMood.of(data.sphere);
-    final media = MediaQuery.sizeOf(context);
     return SonarAurora(
       mood: mood,
       child: SafeArea(
         child: LayoutBuilder(
-          builder: (context, box) {
-            // В низком окне капля уступает место тексту и кнопкам: всё, кроме неё,
-            // занимает около 240 точек, а в сети с цифрами и строкой сервера ещё 125
-            final rest = data.connected ? 370.0 : 245.0;
-            final sphereSize = math.min(
-              (media.shortestSide * .82).clamp(230.0, 340.0),
-              math.max(140.0, box.maxHeight - rest),
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 760;
+            final compact = !wide && constraints.maxHeight < 700;
+            final connection = _ConnectionStage(
+              data: data,
+              mood: mood,
+              compact: compact,
+              wide: wide,
+              onTap: onTap,
+              onRetryKey: onRetryKey,
             );
-            // при подключении появляются цифры, и капля плавно, а не скачком, становится меньше
-            return TweenAnimationBuilder<double>(
-              tween: Tween(end: sphereSize),
-              duration: const Duration(milliseconds: 500),
-              curve: const Cubic(.16, 1, .3, 1),
-              builder: (_, size, _) => _layout(size, mood),
+            final details = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Маршрут', style: SonarText.item),
+                const SizedBox(height: 12),
+                SonarModeSwitch(smart: data.smart, onChanged: onMode),
+                const SizedBox(height: 12),
+                _ChannelRow(data: data, onTap: data.channelEnabled ? onChannel : null),
+                const SizedBox(height: 28),
+                _Session(data: data),
+              ],
+            );
+            return SingleChildScrollView(
+              key: const ValueKey('sonar-home-scroll'),
+              padding: EdgeInsets.fromLTRB(wide ? 40 : 24, 64, wide ? 40 : 24, 28),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1060),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (banner != null) ...[banner!, const SizedBox(height: 12)],
+                      if (wide)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 28),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: connection),
+                              const SizedBox(width: 40),
+                              SizedBox(width: 340, child: details),
+                            ],
+                          ),
+                        )
+                      else ...[
+                        connection,
+                        const SizedBox(height: 28),
+                        details,
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             );
           },
         ),
       ),
     );
   }
+}
 
-  Widget _layout(double sphereSize, SonarMood mood) => Center(
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 480),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          children: [
-            banner ?? const SizedBox(height: 12),
-            const Spacer(flex: 2),
-            SonarSphere(
+class _ConnectionStage extends StatelessWidget {
+  const _ConnectionStage({
+    required this.data,
+    required this.mood,
+    required this.compact,
+    required this.wide,
+    this.onTap,
+    this.onRetryKey,
+  });
+
+  final SonarHomeData data;
+  final SonarMood mood;
+  final bool compact;
+  final bool wide;
+  final VoidCallback? onTap;
+  final VoidCallback? onRetryKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final action = switch (data.sphere) {
+      SphereState.connected => 'Отключить',
+      SphereState.connecting => data.tappable ? 'Остановить' : 'Подключение…',
+      SphereState.failed => 'Подключить снова',
+      SphereState.idle => 'Подключить',
+    };
+    final available = data.tappable ? onTap : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            data.title,
+            textAlign: TextAlign.center,
+            style: SonarText.title.copyWith(fontSize: wide ? 34 : 28),
+          ),
+        ),
+        if (data.subtitle.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(data.subtitle, textAlign: TextAlign.center, style: SonarText.body),
+        ],
+        Center(
+          child: ExcludeSemantics(
+            child: SonarSphere(
               state: data.sphere,
               mood: mood,
-              onTap: data.tappable ? onTap : null,
-              size: sphereSize,
-              semanticLabel: data.connected ? 'Отключить Sonar' : 'Подключить Sonar',
+              onTap: available,
+              size: wide
+                  ? 310
+                  : compact
+                  ? 160
+                  : 220,
             ),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 450),
-              transitionBuilder: (child, a) => FadeTransition(
-                opacity: a,
-                child: SlideTransition(
-                  position: Tween(begin: const Offset(0, .25), end: Offset.zero).animate(a),
-                  child: child,
-                ),
-              ),
-              child: Text(data.title, key: ValueKey(data.title), textAlign: TextAlign.center, style: SonarText.title),
-            ),
-            const SizedBox(height: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 42),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 350),
-                child: Text(
-                  data.subtitle,
-                  key: ValueKey(data.subtitle),
-                  textAlign: TextAlign.center,
-                  style: SonarText.body,
-                ),
-              ),
-            ),
-            if (data.canRetryKey)
-              TextButton(
-                onPressed: onRetryKey,
-                child: Text(data.retryLabel, style: const TextStyle(fontFamily: 'Jost', fontSize: 15)),
-              ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 500),
-              curve: const Cubic(.16, 1, .3, 1),
-              child: data.connected
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 14),
-                      child: Column(
-                        children: [
-                          _Stats(data: data),
-                          const SizedBox(height: 10),
-                          _Route(data: data),
-                        ],
-                      ),
-                    )
-                  : const SizedBox(width: double.infinity),
-            ),
-            const Spacer(flex: 3),
-            SonarModeSwitch(smart: data.smart, onChanged: onMode),
-            const SizedBox(height: 10),
-            _ChannelRow(data: data, onTap: data.channelEnabled ? onChannel : null),
-            const SizedBox(height: 18),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 190, maxWidth: 320),
+            child: FilledButton.icon(
+              onPressed: available,
+              style: FilledButton.styleFrom(
+                foregroundColor: const Color(Sonar.night0),
+                backgroundColor: const Color(Sonar.paper),
+                disabledBackgroundColor: const Color(0xFF26344B),
+                disabledForegroundColor: const Color(Sonar.mist),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                textStyle: SonarText.item,
+              ),
+              icon: const Icon(Icons.power_settings_new_rounded, size: 20),
+              label: Text(action, textAlign: TextAlign.center),
+            ),
+          ),
+        ),
+        if (data.canRetryKey) ...[
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: onRetryKey,
+            child: Text(data.retryLabel, textAlign: TextAlign.center),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
-class _Stats extends StatelessWidget {
-  const _Stats({required this.data});
-
+class _Session extends StatelessWidget {
+  const _Session({required this.data});
   final SonarHomeData data;
 
   @override
   Widget build(BuildContext context) {
-    Widget chip(String label, Widget value) => Expanded(
-      child: Container(
-        height: 80,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: sonarGlass(radius: 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(label, style: SonarText.label),
-            const SizedBox(height: 5),
-            Flexible(
-              child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: value),
-            ),
-          ],
-        ),
+    Widget measurement(String label, Widget value) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: Text(label, style: SonarText.body)),
+          const SizedBox(width: 12),
+          Flexible(child: value),
+        ],
       ),
     );
-    Widget speed(IconData icon, int v, {bool small = false}) => Row(
-      mainAxisSize: MainAxisSize.min,
+    Widget value(String text) => Text(text, textAlign: TextAlign.end, style: SonarText.value);
+    final connected = data.connected;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(icon, size: small ? 12 : 15, color: small ? const Color(Sonar.feather) : const Color(Sonar.paper)),
-        const SizedBox(width: 3),
-        Text(sonarSpeed(v), style: small ? SonarText.hint.copyWith(fontSize: 12, height: 1.2) : SonarText.value),
-      ],
-    );
-    return Row(
-      children: [
-        chip('В СЕТИ', _Elapsed(since: data.connectedSince)),
-        const SizedBox(width: 8),
-        chip(
-          'ПИНГ',
-          Text(
-            data.ping > 0 ? '${data.ping} мс' : '—',
-            style: SonarText.value.copyWith(color: sonarPingColor(data.ping)),
-          ),
+        Row(
+          children: [
+            const Expanded(child: Text('Текущий сеанс', style: SonarText.item)),
+            if (connected) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.circle, size: 6, color: Color(Sonar.mist)),
+              const SizedBox(width: 6),
+              const Text('В сети', style: SonarText.hint),
+            ],
+          ],
         ),
-        const SizedBox(width: 8),
-        chip(
-          'СКОРОСТЬ',
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [speed(Icons.south_rounded, data.down), speed(Icons.north_rounded, data.up, small: true)],
-          ),
+        const SizedBox(height: 10),
+        const Divider(height: 1, color: Color(0xFF314054)),
+        measurement('Время в сети', connected ? _Elapsed(since: data.connectedSince) : value('—')),
+        measurement('Задержка', value(connected && data.ping > 0 ? '${data.ping} мс' : '—')),
+        measurement('Загрузка', value(connected ? sonarSpeed(data.down) : '—')),
+        measurement('Отдача', value(connected ? sonarSpeed(data.up) : '—')),
+        const Divider(height: 1, color: Color(0xFF314054)),
+        const SizedBox(height: 10),
+        Text(
+          connected
+              ? 'За сеанс: получено ${sonarBytes(data.downTotal)}, отправлено ${sonarBytes(data.upTotal)}'
+              : 'Показатели появятся после подключения.',
+          style: SonarText.hint,
         ),
       ],
     );
   }
 }
 
-/// Строка под цифрами: где сервер и сколько уже прошло за подключение.
-class _Route extends StatelessWidget {
-  const _Route({required this.data});
-
-  final SonarHomeData data;
-
-  @override
-  Widget build(BuildContext context) {
-    final style = SonarText.hint.copyWith(fontSize: 12.5, fontFeatures: const [FontFeature.tabularFigures()]);
-    final dim = const Color(Sonar.feather).withValues(alpha: .75);
-    return Wrap(
-      alignment: WrapAlignment.center,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 6,
-      runSpacing: 2,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.place_outlined, size: 14, color: dim),
-            const SizedBox(width: 4),
-            Text('Сервер: ${Sonar.serverCity}', style: style),
-          ],
-        ),
-        Text('·', style: style.copyWith(color: dim)),
-        // стрелок в Jost нет, поэтому значки
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('за сеанс ', style: style),
-            Icon(Icons.south_rounded, size: 12, color: dim),
-            Text(sonarBytes(data.downTotal), style: style),
-            const SizedBox(width: 6),
-            Icon(Icons.north_rounded, size: 12, color: dim),
-            Text(sonarBytes(data.upTotal), style: style),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// Время в сети, тикает раз в секунду.
 class _Elapsed extends HookWidget {
   const _Elapsed({required this.since});
-
   final DateTime? since;
 
   @override
   Widget build(BuildContext context) {
     final tick = useState(0);
     useEffect(() {
+      if (since == null) return null;
       final timer = Timer.periodic(const Duration(seconds: 1), (_) => tick.value++);
       return timer.cancel;
-    }, const []);
-    final d = since == null ? Duration.zero : DateTime.now().difference(since!);
-    return Text(sonarElapsed(d), style: SonarText.value);
+    }, [since]);
+    final elapsed = since == null ? null : DateTime.now().difference(since!);
+    return Text(elapsed == null ? '—' : sonarElapsed(elapsed), style: SonarText.value);
   }
 }
 
-/// Умный режим или «Всё через Sonar»: стеклянный переключатель со скользящей плашкой.
 class SonarModeSwitch extends StatelessWidget {
   const SonarModeSwitch({super.key, required this.smart, this.onChanged});
-
   final bool smart;
   final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
-    Widget half(bool value, String title, String hint) {
-      final on = smart == value;
+    Widget option(bool value, String title) {
+      final selected = smart == value;
       return Expanded(
         child: Semantics(
-          button: true,
-          selected: on,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: on || onChanged == null ? null : () => onChanged!(value),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
-              child: Column(
-                children: [
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 300),
-                    style: SonarText.item.copyWith(
-                      fontSize: 15,
-                      color: on ? const Color(Sonar.paper) : const Color(Sonar.feather),
-                    ),
-                    child: Text(title),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(hint, textAlign: TextAlign.center, style: SonarText.hint.copyWith(fontSize: 12)),
-                ],
-              ),
+          selected: selected,
+          child: TextButton(
+            onPressed: onChanged == null || selected ? null : () => onChanged!(value),
+            style: TextButton.styleFrom(
+              foregroundColor: selected ? const Color(Sonar.night0) : const Color(Sonar.mist),
+              disabledForegroundColor: selected ? const Color(Sonar.night0) : const Color(Sonar.feather),
+              backgroundColor: selected ? const Color(Sonar.paper) : Colors.transparent,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+              textStyle: SonarText.item.copyWith(fontSize: 14),
             ),
+            child: Text(title, textAlign: TextAlign.center),
           ),
         ),
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: sonarGlass(),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: AnimatedAlign(
-              alignment: smart ? Alignment.centerLeft : Alignment.centerRight,
-              duration: const Duration(milliseconds: 450),
-              curve: const Cubic(.16, 1, .3, 1),
-              child: FractionallySizedBox(
-                widthFactor: .5,
-                heightFactor: 1,
-                child: DecoratedBox(decoration: sonarGlass(radius: 12, active: true, glow: const Color(0xFF8B9CFF))),
-              ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: sonarGlass(radius: 13),
+          child: Row(
+            children: [option(true, 'Умный режим'), const SizedBox(width: 4), option(false, 'Всё через Sonar')],
           ),
-          Row(
-            children: [
-              half(true, 'Умный режим', 'игры и РФ напрямую'),
-              half(false, 'Всё через Sonar', 'кроме российских сайтов'),
-            ],
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          smart
+              ? 'Через Sonar — заблокированные сервисы. Игры и российские сайты — напрямую.'
+              : 'Весь трафик через Sonar. Российские сайты — напрямую.',
+          style: SonarText.hint,
+        ),
+      ],
     );
   }
 }
 
 class _ChannelRow extends StatelessWidget {
   const _ChannelRow({required this.data, this.onTap});
-
   final SonarHomeData data;
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final enabled = onTap != null;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-          decoration: sonarGlass(),
-          child: Row(
-            children: [
-              Icon(Icons.graphic_eq_rounded, size: 20, color: const Color(Sonar.feather).withValues(alpha: .9)),
-              const SizedBox(width: 12),
-              const Text('КАНАЛ', style: SonarText.label),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  enabled ? data.channel : '—',
-                  textAlign: TextAlign.right,
-                  overflow: TextOverflow.ellipsis,
-                  style: SonarText.item.copyWith(fontSize: 15),
-                ),
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xFF101B2B),
+    borderRadius: BorderRadius.circular(12),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const Icon(Icons.graphic_eq_rounded, size: 20, color: Color(Sonar.mist)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Канал', style: SonarText.hint),
+                  const SizedBox(height: 2),
+                  Text(data.channelEnabled ? data.channel : 'Появится после получения ключа', style: SonarText.item),
+                ],
               ),
-              if (data.connected && data.ping > 0) ...[const SizedBox(width: 10), _PingDot(ms: data.ping)],
-              const SizedBox(width: 4),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 20,
-                color: const Color(Sonar.feather).withValues(alpha: enabled ? 1 : .35),
-              ),
+            ),
+            if (onTap != null) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right_rounded, size: 20, color: Color(Sonar.feather)),
             ],
-          ),
+          ],
         ),
       ),
-    );
-  }
-}
-
-class _PingDot extends StatelessWidget {
-  const _PingDot({required this.ms});
-
-  final int ms;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = sonarPingColor(ms);
-    return Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-        boxShadow: [BoxShadow(color: color.withValues(alpha: .6), blurRadius: 8)],
-      ),
-    );
-  }
+    ),
+  );
 }

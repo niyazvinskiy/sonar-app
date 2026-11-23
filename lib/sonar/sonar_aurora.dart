@@ -22,6 +22,7 @@ class SonarAurora extends HookWidget {
     final clock = useAnimationController(duration: const Duration(minutes: 2));
     useEffect(() {
       if (still) {
+        clock.stop();
         clock.value = .2;
       } else {
         clock.repeat();
@@ -31,7 +32,7 @@ class SonarAurora extends HookWidget {
 
     return TweenAnimationBuilder<SonarMood>(
       tween: SonarMoodTween(end: mood),
-      duration: const Duration(milliseconds: 1400),
+      duration: still ? Duration.zero : const Duration(milliseconds: 700),
       curve: Curves.easeInOutCubic,
       builder: (context, m, child) => CustomPaint(painter: _AuroraPainter(clock, m), child: child),
       child: child,
@@ -81,19 +82,19 @@ class _AuroraPainter extends CustomPainter {
       Offset(size.width * (.28 + .14 * math.sin(t / 9)), size.height * (.26 + .08 * math.cos(t / 11))),
       big * .62,
       mood.primary,
-      .10 + .20 * e,
+      .04 + .07 * e,
     );
     blob(
       Offset(size.width * (.78 + .12 * math.cos(t / 13)), size.height * (.52 + .12 * math.sin(t / 10))),
       big * .58,
       mood.secondary,
-      .10 + .16 * e,
+      .03 + .05 * e,
     );
     blob(
       Offset(size.width * (.45 + .18 * math.sin(t / 17 + 2)), size.height * (1.02 + .04 * math.cos(t / 7))),
       big * .7,
       Color.lerp(mood.primary, const Color(Sonar.night2), .55)!,
-      .18 + .12 * e,
+      .07 + .04 * e,
     );
 
     // Края темнее: взгляд держится на капле

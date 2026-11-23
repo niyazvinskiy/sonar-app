@@ -78,6 +78,17 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
     }
   }
 
+  /// Recovery owns retries and presents errors in its persistent status, without
+  /// opening a new modal for every failed attempt on an offline computer.
+  Future<bool> connectAutomatically() async {
+    if (state is! AsyncError && state.valueOrNull is! Disconnected) return false;
+    return _singleStart.run<bool>(() async {
+      await ref.read(Preferences.startedByUser.notifier).update(true);
+      await _connectThrottled(showErrors: false);
+      return true;
+    }, onIgnored: false);
+  }
+
   /// Restores the tunnel on desktop start when the user had it running before quitting,
   /// so a session started manually survives a reboot or an autostart login.
   Future<void> restoreConnectionOnStartup() async {
@@ -161,7 +172,7 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
     );
   }
 
-  Future<void> _connectThrottled() async {
+  Future<void> _connectThrottled({bool showErrors = true}) async {
     final activeProfile = await ref.read(activeProfileProvider.future);
     if (activeProfile == null) {
       loggy.info("no active profile, not connecting");
@@ -169,27 +180,26 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
     }
     // Read before connecting: a failed start sends the core restart signal, which marks this
     // notifier out of date until the next frame, and debug builds refuse any ref call until then.
-    final dialogs = ref.read(dialogNotifierProvider.notifier);
-    final t = ref.read(translationsProvider).requireValue;
+    final dialogs = showErrors ? ref.read(dialogNotifierProvider.notifier) : null;
+    final t = showErrors ? ref.read(translationsProvider).requireValue : null;
     final startedByUser = ref.read(Preferences.startedByUser.notifier);
     // The core reports Starting only once the config is built, about a second
     // later; the app is connecting from here on.
     state = const AsyncData(Connecting());
-    await _connectionRepo.connect(activeProfile, ref.read(Preferences.disableMemoryLimit)).mapLeft((
-      ConnectionFailure err,
-    ) async {
+    final result = await _connectionRepo.connect(activeProfile, ref.read(Preferences.disableMemoryLimit)).run();
+    await result.match((ConnectionFailure err) async {
       loggy.warning("error connecting", err);
       // Before the dialog: a status the core sends while it is open, such as a
       // late Started, must win over this error, not be overwritten by it.
       state = AsyncError(err, StackTrace.current);
       //Go err is not normal object to see the go errors are string and need to be dumped
-      await dialogs.showCustomAlertFromErr(err.present(t));
+      if (dialogs != null && t != null) await dialogs.showCustomAlertFromErr(err.present(t));
       loggy.warning(err);
       if (err.toString().contains("panic")) {
         await Sentry.captureException(Exception(err.toString()));
       }
       await startedByUser.update(false);
-    }).run();
+    }, (_) => Future<void>.value());
   }
 
   Future<void> _disconnect() async {
@@ -225,6 +235,4 @@ class SingleCall {
 }
 
 /// Whether the core is hot reloading; only the connection button shows it.
-final hotReloadingProvider = StreamProvider<bool>(
-  (ref) => ref.watch(connectionRepositoryProvider).watchHotReloading(),
-);
+final hotReloadingProvider = StreamProvider<bool>((ref) => ref.watch(connectionRepositoryProvider).watchHotReloading());

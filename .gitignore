@@ -80,3 +80,4 @@ windows/sign.cer
 
 # Sonar: снимки экранов из test/sonar/sonar_screens_test.dart, по запросу
 test/sonar/screens/
+.impeccable/review/

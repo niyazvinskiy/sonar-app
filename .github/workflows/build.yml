@@ -33,7 +33,6 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
       - uses: subosito/flutter-action@v2.21.0
@@ -158,6 +157,10 @@ jobs:
         run: |
           make ${{ matrix.platform }}-release
 
+      - name: Verify Windows automation and update handoff
+        if: matrix.platform == 'windows'
+        run: flutter test --no-pub test/sonar
+
       - name: Copy to out Windows
         if: matrix.platform == 'windows'
         shell: pwsh
@@ -243,8 +246,8 @@ jobs:
   # Windows и Android обязательны, без них выпуск не публикуется
   upload-release:
     permissions: write-all
-    if: ${{ !cancelled() && inputs.upload-artifact && inputs.tag-name != 'draft' }}
-    needs: [build]
+    if: ${{ !cancelled() && needs.test.result == 'success' && inputs.upload-artifact && inputs.tag-name != 'draft' }}
+    needs: [test, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

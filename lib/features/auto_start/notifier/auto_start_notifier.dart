@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:hiddify/core/app_info/app_info_provider.dart';
+import 'package:hiddify/sonar/sonar_windows.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -21,7 +22,7 @@ class AutoStartNotifier extends _$AutoStartNotifier with InfraLogger {
       appPath: Platform.resolvedExecutable,
       packageName: "Hiddify.HiddifyNext",
     );
-    final isEnabled = await launchAtStartup.isEnabled();
+    final isEnabled = Platform.isWindows ? await SonarWindows.isStartupEnabled() : await launchAtStartup.isEnabled();
     loggy.info("auto start is [${isEnabled ? "Enabled" : "Disabled"}]");
     _startTimer();
     ref.onDispose(() => _timer?.cancel());
@@ -35,19 +36,26 @@ class AutoStartNotifier extends _$AutoStartNotifier with InfraLogger {
 
   Future<bool> updateStatus() async {
     loggy.debug("update auto start status");
-    final isEnabled = await launchAtStartup.isEnabled();
+    final isEnabled = Platform.isWindows ? await SonarWindows.isStartupEnabled() : await launchAtStartup.isEnabled();
     state = AsyncValue.data(isEnabled);
     return isEnabled;
   }
 
   Future<void> enable() async {
     loggy.debug("enabling auto start");
-    await launchAtStartup.enable();
+    if (Platform.isWindows) {
+      await SonarWindows.setStartupEnabled(true);
+      // Remove the legacy unelevated registry launch to avoid two processes at login.
+      await launchAtStartup.disable();
+    } else {
+      await launchAtStartup.enable();
+    }
     state = const AsyncValue.data(true);
   }
 
   Future<void> disable() async {
     loggy.debug("disabling auto start");
+    if (Platform.isWindows) await SonarWindows.setStartupEnabled(false);
     await launchAtStartup.disable();
     state = const AsyncValue.data(false);
   }

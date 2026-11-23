@@ -6,7 +6,7 @@ display_name: Sonar
 executable_name: Sonar.exe
 create_desktop_icon: true
 install_dir_name: "{autopf}\\Sonar"
-privileges_required: lowest
+privileges_required: admin
 setup_icon_file: windows\runner\resources\app_icon.ico
 locales:
   - en

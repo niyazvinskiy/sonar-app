@@ -44,8 +44,8 @@ class SonarSettingsLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsetsDirectional.fromSTEB(8, 22, 8, 8),
-    child: Text(text.toUpperCase(), style: SonarText.label),
+    padding: const EdgeInsetsDirectional.fromSTEB(0, 28, 0, 12),
+    child: Text(text, style: SonarText.item),
   );
 }
 
@@ -59,13 +59,13 @@ class SonarSettingsGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = <Widget>[];
     for (var i = 0; i < children.length; i++) {
-      if (i > 0) items.add(const Divider(indent: 68, height: 1));
+      if (i > 0) items.add(const Divider(indent: 56, endIndent: 18, height: 1, color: Color(0xFF29364A)));
       items.add(children[i]);
     }
     return DecoratedBox(
-      decoration: sonarGlass(radius: 20),
+      decoration: sonarGlass(radius: 14),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         child: Material(
           type: MaterialType.transparency,
           child: Column(mainAxisSize: MainAxisSize.min, children: items),
@@ -75,7 +75,7 @@ class SonarSettingsGroup extends StatelessWidget {
   }
 }
 
-/// Пункт настроек: значок в цветной плашке, название, пояснение.
+/// Пункт настроек с привычной нативной иерархией: название, пояснение, действие.
 class SonarSettingsTile extends StatelessWidget {
   const SonarSettingsTile({
     super.key,
@@ -97,18 +97,14 @@ class SonarSettingsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListTile(
     onTap: onTap,
-    contentPadding: const EdgeInsetsDirectional.fromSTEB(16, 4, 12, 4),
-    leading: Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: tint.withValues(alpha: .16),
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: tint.withValues(alpha: .28)),
-      ),
-      child: Icon(icon, size: 19, color: Color.lerp(tint, Colors.white, .25)),
+    contentPadding: const EdgeInsetsDirectional.fromSTEB(18, 10, 14, 10),
+    minLeadingWidth: 22,
+    horizontalTitleGap: 14,
+    leading: Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Icon(icon, size: 22, color: const Color(Sonar.mist)),
     ),
-    title: Text(title, style: SonarText.item.copyWith(fontWeight: FontWeight.w400)),
+    title: Text(title, style: SonarText.item),
     subtitle: subtitle == null ? null : Text(subtitle!, style: SonarText.hint),
     trailing: trailing ?? Icon(Icons.chevron_right_rounded, color: const Color(Sonar.feather).withValues(alpha: .6)),
   );
@@ -153,52 +149,37 @@ class SonarAppCard extends HookConsumerWidget {
     final busy = checking.value || u.phase == SonarUpdatePhase.downloading || u.phase == SonarUpdatePhase.installing;
 
     return Container(
-      padding: const EdgeInsetsDirectional.fromSTEB(18, 16, 10, 16),
-      decoration: sonarGlass(radius: 22, active: true, glow: const Color(0xFF7C8CFF)),
-      child: Row(
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFF314054))),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            padding: const EdgeInsets.all(11),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const RadialGradient(
-                center: Alignment(-.3, -.4),
-                colors: [Color(0xFF2A3A66), Color(Sonar.night1)],
-              ),
-              border: Border.all(color: const Color(Sonar.mist).withValues(alpha: .18)),
-            ),
-            child: Assets.images.logo.svg(),
-          ),
-          const Gap(14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(version.isEmpty ? 'Sonar' : 'Sonar $version', style: SonarText.value.copyWith(fontSize: 18)),
-                const Gap(3),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  child: Text(
-                    status,
-                    key: ValueKey(status),
-                    style: SonarText.hint.copyWith(
-                      color: u.phase == SonarUpdatePhase.ready ? const Color(0xFF5EEAD4) : null,
-                    ),
-                  ),
+          Row(
+            children: [
+              Assets.images.logo.svg(width: 32, height: 32),
+              const Gap(12),
+              Expanded(
+                child: Text(
+                  version.isEmpty ? 'Sonar' : 'Sonar $version',
+                  style: SonarText.title.copyWith(fontSize: 24),
                 ),
-              ],
-            ),
+              ),
+              if (busy) const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            ],
           ),
-          if (busy)
-            const Padding(
-              padding: EdgeInsets.all(14),
-              child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-            )
-          else if (action != null)
-            TextButton(onPressed: onAction, child: Text(action)),
+          const Gap(12),
+          Semantics(liveRegion: true, child: Text(status, style: SonarText.body)),
+          if (u.phase == SonarUpdatePhase.downloading) ...[const Gap(12), LinearProgressIndicator(value: u.progress)],
+          if (action != null) ...[
+            const Gap(8),
+            TextButton.icon(
+              onPressed: onAction,
+              icon: const Icon(Icons.system_update_alt_rounded, size: 18),
+              label: Text(action),
+            ),
+          ],
         ],
       ),
     );

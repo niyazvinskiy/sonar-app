@@ -53,17 +53,17 @@ abstract class SonarText {
   static const title = TextStyle(
     fontFamily: _f,
     fontSize: 30,
-    fontWeight: FontWeight.w300,
+    fontWeight: FontWeight.w400,
     height: 1.15,
     letterSpacing: -.2,
     color: Color(Sonar.paper),
   );
-  static const body = TextStyle(fontFamily: _f, fontSize: 15, height: 1.45, color: Color(Sonar.feather));
+  static const body = TextStyle(fontFamily: _f, fontSize: 15, height: 1.5, color: Color(Sonar.mist));
   static const label = TextStyle(
     fontFamily: _f,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: FontWeight.w500,
-    letterSpacing: 1.6,
+    letterSpacing: .7,
     color: Color(Sonar.feather),
   );
   static const value = TextStyle(
@@ -77,21 +77,11 @@ abstract class SonarText {
   static const hint = TextStyle(fontFamily: _f, fontSize: 13, height: 1.35, color: Color(Sonar.feather));
 }
 
-/// Стеклянная панель поверх живого фона.
+/// Тональный слой ночной воды. Выбор читается без свечения и размытия.
 BoxDecoration sonarGlass({double radius = 16, bool active = false, Color? glow}) => BoxDecoration(
   borderRadius: BorderRadius.circular(radius),
-  gradient: LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [
-      Colors.white.withValues(alpha: active ? .11 : .065),
-      Colors.white.withValues(alpha: active ? .05 : .025),
-    ],
-  ),
-  border: Border.all(color: (glow ?? Colors.white).withValues(alpha: active ? .42 : .11)),
-  boxShadow: active && glow != null
-      ? [BoxShadow(color: glow.withValues(alpha: .18), blurRadius: 24, spreadRadius: -4)]
-      : null,
+  color: active ? const Color(0xFF24344E) : const Color(0xFF101B2B),
+  border: Border.all(color: const Color(Sonar.mist).withValues(alpha: active ? .32 : .12)),
 );
 
 /// Пинг цветом: быстрый бирюзовый, средний янтарный, плохой розовый.
